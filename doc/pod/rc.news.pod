@@ -1,0 +1,108 @@
+=head1 NAME
+
+rc.news - Start or stop INN daemons
+
+=head1 SYNOPSIS
+
+B<rc.news> [C<start> | C<stop>]
+
+=head1 DESCRIPTION
+
+B<rc.news> can be used to start or stop B<innd> and supporting programs.
+It checks to make sure INN is not already running, handles cases of
+unclean shutdown, finishes up tasks which might have been interrupted by
+the preceding shutdown, e-mails certain boot-time warnings to
+I<newsmaster> (as set in F<inn.conf>), and is generally safer and easier
+than starting and stopping everything directly.  It needs to be run as the
+news user so that files in I<pathrun> are created with the right ownership
+(though this is less important for C<rc.news stop>).
+
+Programs run and stopped by this script include:
+
+=over 4
+
+=item *
+
+Always:  B<innd> is started or stopped.
+
+=item *
+
+If I<doinnwatch> is true in F<inn.conf>:  B<innwatch> is started and
+stopped.
+
+=item *
+
+If I<docnfsstat> is true in F<inn.conf>:  B<cnfsstat> is started and stopped.
+
+=item *
+
+If I<ovmethod> is set to C<ovdb> in F<inn.conf>:  B<ovdb_init> is run;
+B<ovdb_server> and B<ovdb_monitor> are stopped.
+
+=item *
+
+If F<rc.news.local> exists in I<pathbin>:  B<rc.news.local> is run with
+argument C<start> or C<stop> (to perform site-specific startup or shutdown
+tasks).
+
+=item *
+
+When started, if INN appears to have previously been shut down during
+its expiry process, run B<expirerm> if there are articles to unlink.
+
+=item *
+
+When started, if overview data appears to have just been rebuilt and
+F<active> needs to be renumbered, then actually renumber it.
+
+=back
+
+=head1 OPTIONS
+
+=over 4
+
+=item C<start>
+
+If the first argument is C<start>, or no first argument is given,
+B<rc.news> initiates INN startup.
+
+=item C<stop>
+
+If the first argument is C<stop>, B<rc.news> initiates INN shutdown.
+
+=back
+
+=head1 EXAMPLES
+
+To start INN and leave certain error messages going to the terminal:
+
+       su news -s /bin/sh -c <pathbin in inn.conf>/rc.news
+
+To run INN at startup time from appropriate system boot scripts:
+
+       su news -s /bin/sh -c <pathbin>/rc.news >> <pathlog>/rc.news 2>&1
+
+To stop INN:
+
+       su news -s /bin/sh -c '<pathbin>/rc.news stop'
+
+=head1 BUGS
+
+Running C<rc.news start> as root is never the right thing to do, so we
+should at minimum check for this and error, or perhaps change effective
+user ID.
+
+=head1 HISTORY
+
+// FIXME:  any attribution for F<rc.news> itself?
+
+This manual page written by Jeffrey S<M. Vinocur> <jeff@litech.org> for
+InterNetNews.
+
+$Id: rc.news.pod 9723 2014-09-24 17:54:24Z iulius $
+
+=head1 SEE ALSO
+
+ctlinnd(8), cnfsstat(8), expirerm(8), inn.conf(5), innwatch(8), ovdb(5).
+
+=cut

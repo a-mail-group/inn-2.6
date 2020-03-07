@@ -1,0 +1,55 @@
+=head1 NAME
+
+active.times - List of local creation times of newsgroups
+
+=head1 DESCRIPTION
+
+The file I<pathdb>/active.times provides a chronological record of when
+newsgroups were created on the local server.  This file is normally
+updated by B<mod-active> and B<innd> whenever a newgroup control message
+is processed or a C<ctlinnd newgroup> command is issued, and is used
+by B<nnrpd> to answer NEWGROUPS requests.
+
+Each line consists of three fields:
+
+    <name> <time> <creator>
+
+The first field is the name of the newsgroup.  The second field is the
+time it was created, expressed as the number of seconds since the epoch.
+The third field is plain text intended to describe the entity that created
+the newsgroup.  This field is encoded in UTF-8 and is usually the e-mail
+address of the person who created the group, as specified in the control
+message or on the B<ctlinnd> command line, or the newsmaster specified
+at configure time if no creator argument was given to B<ctlinnd> (by
+default, it is C<usenet>).
+
+You can get the F<active.times> file of another NNTP server with getlist(1).
+
+=head1 EXAMPLE
+
+The line:
+
+   news.admin.moderation 1175716803 <group-admin@isc.org>
+
+shows that the newsgroup news.admin.moderation was created on April 4th, 2007,
+at 20:00:03 UTC.  This date can be obtained for instance with
+C<convdate -dc 1175716803> (convdate(1) is shipped with INN) or
+C<date -u -d "Jan 1, 1970 00:00:00 +0000 + 1175716803 seconds">.  It is
+when the newsgroup was locally created; in this example, it is when a
+control message sent by C<group-admin@isc.org> was received and processed
+by the news server (see control.ctl(5) for more details).  Therefore,
+the time is not necessarily the same on every news server.
+
+=head1 HISTORY
+
+Written by Rich $alz <rsalz@uunet.uu.net> for InterNetNews.  Converted to
+POD by Russ Allbery <eagle@eyrie.org>.
+
+$Id: active.times.pod 9971 2015-12-10 20:30:10Z iulius $
+
+=head1 SEE ALSO
+
+active(5), convdate(1), ctlinnd(8), getlist(1), inn.conf(5), innd(8),
+mod-active(8), nnrpd(8).
+
+=cut

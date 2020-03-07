@@ -1,0 +1,18 @@
+##  overview.fmt for testing its migration to inn.conf.
+##  $Id: overview.fmt 8409 2009-04-11 22:13:41Z iulius $
+
+Subject:
+
+From:
+Date:
+Message-ID:
+References:
+Bytes:
+Lines:
+Xref:full
+Path:full
+
+Keywords:full
+# A
+  # Comment.
+Injection-Info:full  # Another comment.

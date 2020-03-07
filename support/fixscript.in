@@ -1,0 +1,82 @@
+#! /bin/sh
+
+##  $Id: fixscript.in 8560 2009-08-14 18:31:09Z iulius $
+##
+##  Fix interpreter paths and INN variable load paths.
+##
+##  Scripts shipped with INN always have the invocation path for the
+##  interpreter on the first line and the command to load INN variable
+##  settings into the script on the second line.  For example, for a Bourne
+##  shell script:
+##
+##      #!/bin/sh
+##      . /var/news/lib/innshellvars
+##
+##  This script takes as input such a script and outputs the same script
+##  with the first two lines replaced to have the correct path to the
+##  interpreter and to the INN variable library, as determined by configure.
+##
+##  If the script is invoked with the -i flag, only fix the interpreter
+##  path and don't modify the second line of the file to include the
+##  appropriate innshellvars.
+
+PERLPATH='@PERL@'
+
+prefix="@prefix@"
+exec_prefix="@exec_prefix@"
+libdir="@libdir@"
+libperldir="@LIBPERLDIR@"
+
+# We can probably just assume sed is on the path, but since we have it, we may
+# as well use it.
+SED='@SED@'
+
+options=true
+addlib=true
+while $options ; do
+    case X"$1" in
+    X-i) addlib=false  ;;
+    *)   options=false ;;
+    esac
+    $options && shift
+done
+
+input="$1"
+if [ -z "$input" ] ; then
+    echo "No input file specified" >&2
+    exit 1
+fi
+
+output="$2"
+if [ -z "$output" ] ; then
+    output=`echo "$input" | sed 's/\.in$//'`
+fi
+if [ x"$input" = x"$output" ] ; then
+    echo "No output file specified and input file doesn't end in .in" >&2
+    exit 1
+fi
+
+interpreter=`head -n 1 "$input"`
+case "$interpreter" in
+*/sh|*SH*)
+    path="@SHELL@"
+    lib=". $libdir/innshellvars"
+    ;;
+*/perl*|*PERL*)
+    path=`echo "$interpreter" | sed 's%^#! *[^ ][^ ]*%'"$PERLPATH%"`
+    lib="use lib '@LIBPERLDIR@'; use INN::Config;"
+    ;;
+*)
+    echo "Unknown interpreter $interpreter" >&2
+    exit 1
+    ;;
+esac
+
+echo "#! $path"          >  "$output"
+if $addlib ; then
+    echo "$lib"          >> "$output"
+    "$SED" 1,2d "$input" >> "$output"
+else
+    "$SED" 1d "$input"   >> "$output"
+fi
+chmod 755 "$output"

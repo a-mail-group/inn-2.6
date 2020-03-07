@@ -1,0 +1,3211 @@
+=head1 Changes in 2.6.3
+
+=over 2
+
+=item *
+
+Fixed the selection of the elliptic curve to use with S<OpenSSL 1.1.0>
+or later; NIST P-256 was enforced instead of using the most secure curve.
+
+=item *
+
+A new F<inn.conf> parameter has been added to fine-tune the cipher suites
+to use with S<TLS 1.3>:  the I<tlsciphers13> now permits configuring
+them.  A separate cipher suite configuration parameter is needed for
+S<TLS 1.3> because S<TLS 1.3> cipher suites are not compatible with
+S<TLS 1.2>, and vice-versa.  In order to avoid issues where legacy
+S<TLS 1.2> cipher suite configuration configured in the I<tlsciphers>
+parameter would inadvertently disable all S<TLS 1.3> cipher suites,
+the F<inn.conf> configuration has been separated out.
+
+=item *
+
+Fixed a regression since S<INN 2.6.1> that prevented articles with
+internationalized header fields (that is to say encoded in UTF-8)
+from being posted.
+
+=item *
+
+Support for S<Python 3> has been added to INN.  Embedded Python filtering
+and authentication hooks for B<innd> and B<nnrpd> can now use S<version
+3.3.0> or later of the Python interpreter.  In the 2.x series, S<version
+2.3.0> or later is still supported.
+
+When configuring INN with the B<--with-python> flag, the C<PYTHON>
+environment variable, when set, is used to select the interpreter
+to embed.  Otherwise, it is searched in standard paths.
+
+In case you change the Python interpreter to embed, make sure that
+the Python scripts you use are written in the expected syntax for that
+version of the Python interpreter.  Notably, buffer objects have been
+replaced with memoryview objects in S<Python 3>, and UTF-8 encoding
+now really matters for string literals (S<Python 3> uses bytes and
+Unicode objects).
+
+INN documentation and samples of Python hooks have been updated to
+provide more examples.
+
+=item *
+
+When a Python or Perl filter hook rejects an article, B<innd> now mentions
+the reason in response to CHECK and TAKETHIS commands.  Previously,
+the reason was given only for the IHAVE command.
+
+=item *
+
+B<nnrpd> now properly logs the hostname of clients whose connection
+failed owing to an issue during the negotiation of a TLS session or
+high load average.
+
+=back
+
+=head1 Changes in 2.6.2
+
+=over 2
+
+=item *
+
+A new I<syntaxchecks> parameter has been added in F<inn.conf>.
+It permits controlling the level of checks performed by B<innd> and
+B<nnrpd>.  Up to now, only one check can be enabled/disabled:  when
+I<laxmid> is mentioned in the values of this new parameter, INN accepts
+Message-IDs that contain C<..> in the left part, as well as Message-IDs
+with two C<@> (such Message-IDs would otherwise be considered as
+syntactically invalid).  See the inn.conf(5) man page for more details.
+
+The check is disabled by default (I<no-laxmid>), which corresponds to
+the legacy behaviour of S<INN 2.6.1> and earlier.
+
+=item *
+
+Use of the B<ovdb_server> helper server is now the default when
+using the ovdb overview method, that is to say the default value
+for the I<readserver> parameter in F<ovdb.conf> is now set to true.
+It improves stability and avoids deadlocks, timing issues and corrupted
+ovdb databases.
+
+=item *
+
+B<mailpost> now removes empty header fields before attempting to post
+articles, and keeps trace of them in the X-Mailpost-Empty-Hdrs: newly
+generated header field body.  Also, B<mailpost> now sanitizes header
+fields with regards to empty continuation header lines.  Thanks to
+Kamil Jonca for these bug reports.
+
+=item *
+
+A new B<-z> parameter has been added to B<mailpost> to mention a list
+of header fields to remove from the gated message.  Thanks to Dieter
+Stussy for the patch.
+
+=item *
+
+Fixed a bug in B<inews> that was rejecting articles containing header
+fields whose length exceeded 998 bytes.  This limitation is for the
+length of a single line of a header field (and not for the length of
+the whole header field, as it was wrongly the case).
+
+=item *
+
+Added support for GnuPG's B<gpg> binary (in addition to B<gpgv>)
+in B<pgpverify>.  Indeed, B<gpg> still validates signatures made
+with weak digest algorithms like MD5 whereas B<gpgv> no longer do.
+Thanks to Thomas Hochstein for the patch, which permits validating
+control articles for hierarchies that are still using old PGP keys.
+
+=item *
+
+Added similar support for GnuPG's B<gpg> binary in B<perl-nocem> to
+validate NoCeM notices from issuers who are still using old PGP keys.
+
+=item *
+
+A few commands listed in the "Control commands to INND" section in
+daily Usenet reports were appearing as a mere letter; all of them are
+now properly converted to meaningful words.
+
+=item *
+
+The I<tlsprotocols> parameter in F<inn.conf> now recognizes the
+C<TLSv1.3> value (for OpenSSL versions implementing S<TLS 1.3>, that
+is to say starting from S<OpenSSL 1.1.1>).
+
+=item *
+
+The buffindexed overview method will now hopefully work properly on
+systems with a native page size larger than 16KB.
+
+=item *
+
+Other minor bug fixes and documentation improvements.
+
+=back
+
+=head1 Changes in 2.6.1
+
+=over 2
+
+=item *
+
+B<nnrpd> now uses C<-0000> as the time zone for Date: and Injection-Date:
+header fields it generates.  It was previously using C<+0000>, wrongly
+systematically indicating a local time zone at Universal Time when
+I<localtime> is set to false (which is the default) in F<readers.conf>.
+The C<+0000> time zone will now be used only if I<localtime> is set to
+true and UTC is really the local time zone of the server.
+
+=item *
+
+Julien Elie has implemented in B<nnrpd> the new COMPRESS command
+described in draft-murchison-nntp-compress that extends the NNTP protocol
+to allow a connection to be effectively and efficiently compressed.
+News clients that also support that extension will be able to benefit
+from that bandwidth optimization and improvement in speed.  Moreover,
+using COMPRESS is more secure than TLS-level compression, as far as
+authentication credentials are concerned.
+
+=item *
+
+The default value for the I<tlscompression> parameter in F<inn.conf>
+has changed.  TLS-level compression is now disabled by default, to comply
+with the best current practices for a secure use of TLS in application
+protocols like NNTP.  Using the new COMPRESS command is recommended.
+
+=item *
+
+The I<tlscompression> parameter in F<inn.conf> now also permits
+disabling TLS-level compression with S<OpenSSL 0.9.8>.  It previously
+had an effect only when S<OpenSSL 1.0.0> or later was used.
+
+=item *
+
+B<rnews> no longer segfaults at startup when started setuid news.
+Thanks to Marcus Jodorf for the bug report.
+
+=item *
+
+Fixed slow B<nnrpd> responses for a few NNTP commands.  The TCP_NODELAY
+option was unconditionally set whereas only BSD/OS systems needed it.
+Thanks to Christian Mock for having discovered that.
+
+=item *
+
+Articles containing a Received: or a Posted: header field are no longer
+rejected by B<nnrpd> at injection time.
+
+=item *
+
+Articles containing control characters or whitespace-only content lines
+in their headers are now rejected by B<nnrpd> at injection time.
+
+=item *
+
+S<OpenSSL 1.1.0> support has been added to INN.
+
+=item *
+
+When an encryption layer is negotiated during a successful use of the
+STARTTLS command, or after a successful authentication using a SASL
+mechanism that negotiates an encryption layer, B<nnrpd> now updates
+the permissions of the news client according to the new secure state
+of his connection (that is to say auth blocks in F<readers.conf> using
+the I<require_ssl> parameter are taken into account).  Previously,
+only connections on a dedicated port (usually 563) were taking benefit
+from that parameter.  Thanks to Steve Crook for the bug report.
+
+=item *
+
+When a data integrity layer was negotiated during a successful SASL
+authentication, B<nnrpd> was wrongly reseting any knowledge obtained
+from the client, such as the current newsgroup and article number.
+This behaviour now applies only when an encryption layer is negotiated.
+
+=item *
+
+B<nntpsend> now correctly waits until all of the child B<innxmit>
+processes exit before it does.  It was causing B<nntpsend> to fail
+to work properly on systems that use systemd, because when it exits
+prematurely, systemd kills all of the processes it launched, including
+the B<innxmit> processes.  Thanks to Jonathan Kamens for the patch.
+
+=item *
+
+Update from GNU Libtool 2.4.2 to 2.4.6.
+
+=item *
+
+Other minor bug fixes and documentation improvements.
+
+=back
+
+=head1 Upgrading from 2.5 to 2.6
+
+The following changes require your full attention because a manual
+intervention may be needed:
+
+=over 2
+
+=item *
+
+The name and location of the B<pullnews> configuration file have changed.
+It is now F<pullnews.marks>, located in I<pathdb> when B<pullnews> is
+run as the news user, or otherwise in the running user's home directory.
+This file was previously stored in F<.pullnews> in the running user's
+home directory (even for the news user).  If you use B<pullnews>, you
+need to manually move and rename the configuration file; otherwise,
+it will no longer work.  Note that the B<-c> flag passed to B<pullnews>
+allows specifying another configuration file, if need be.
+
+=item *
+
+The default location of the B<mailpost> database directory has changed
+from I<pathtmp> to I<pathdb>.  If you use B<mailpost> without an
+explicitly specified database directory (using the B<-b> flag), then you
+should manually move your current database files F<mailpost-msgid.dir>
+and F<mailpost-msgid.pag> from I<pathtmp> to I<pathdb>.
+
+=item *
+
+If you have been using TLS/SSL with B<nnrpd> before, be aware that the
+default value of a few F<inn.conf> parameters have changed:  the server
+now decides the preferred cipher (instead of the client), and only TLS
+protocols are allowed (using the flawed SSLv2 and SSLv3 protocols is
+now disabled).  If you want to change these settings, the respective
+I<tlspreferserverciphers> and I<tlsprotocols> parameters can be tuned
+to your needs.
+
+=item *
+
+The B<--with-kerberos> configure flag used to add S<Kerberos v5>
+support has been renamed to B<--with-krb5>.
+
+=item *
+
+The B<--with-berkeleydb> configure flag used to add S<Berkeley DB>
+support has been renamed to B<--with-bdb>.
+
+=item *
+
+The B<--enable-ipv6> configure flag no longer exists.  IPv6 is now
+unconditionally enabled, if available.
+
+=item *
+
+$HOME is no longer exported as an environment variable by B<innshellvars>,
+B<innshellvars.tcl> and the Perl module C<INN::Config>.  It was previously
+overriding the default user home directory with I<pathnews>.  If you use
+these scripts in your own scripts, you will have to take care of that change.
+
+=item *
+
+Owing to the implementation of S<RFC 4643> (AUTHINFO USER/PASS) in B<innd>,
+if remote peers have to authenticate in order to feed articles, they now
+have to send a username (which was previously wrongly optional), before
+sending their password.  The mandatory username, though currently unused
+by B<innd>, can be whatever the remote peer wishes.  In previous versions
+of INN, B<inncheck> was already complaining when F<passwd.nntp> contained
+an empty username associated with a password.
+
+A manual review of authenticated feeds should then be done so as to ensure
+that they are properly working.
+
+=item *
+
+The Injection-Date: and Injection-Info: headers are now generated by B<nnrpd>
+at injection time instead of the NNTP-Posting-Date:, NNTP-Posting-Host:,
+X-Complaints-To: and X-Trace: headers.  Local scripts that were using
+(for authentication, privacy, etc.) these now deprecated headers should
+be updated.  Also note that the Path: header of locally posted articles
+can also contain the contents of the deprecated NNTP-Posting-Host: field.
+
+=item *
+
+The two I<addnntppostingdate> and I<addnntppostinghost> parameters in
+F<inn.conf> have been respectively renamed to I<addinjectiondate> and
+I<addinjectionpostinghost>.  B<innupgrade> takes care of the modification
+only for F<inn.conf>; a manual change will therefore be needed for
+F<readers.conf>, if these parameters are overridden in this file.
+
+=item *
+
+The default values of a few F<inn.conf> parameters have changed to make
+use of the vastly expanded storage and RAM commonly available today:
+datamovethreshold (from 8192 to 16384), msgidcachesize (from 16000
+to 64000), overcachesize (from 64 to 128), and wireformat (now enabled
+by default).
+
+The generation of status reports and performance timings are now also
+enabled by default:  logstatus and nnrpdoverstats parameters, with a
+frequency of 10 minutes (status and timer parameters).
+
+=item *
+
+The default value of max-queue-size has changed from 5 to 20, and
+use-mmap now defaults to true for F<innfeed.conf>.
+
+=back
+
+If you are upgrading from a version prior to S<INN 2.5>, see also
+L<Upgrading from 2.4 to 2.5>.
+
+=head1 Changes in 2.6.0
+
+=over 2
+
+=item *
+
+The NNTP protocol requires a username to be sent before a password when
+authentication is used.  B<innd> was wrongly allowing only a password to
+be sent by authenticated peers.  See the note above for more details.
+
+=item *
+
+The Lines: header is no longer generated by B<nnrpd> at injection time.
+
+=item *
+
+The Injection-Date: header is now generated by B<nnrpd> at injection time
+instead of the deprecated NNTP-Posting-Date: header, when I<addinjectiondate>
+is set to true.  Note that I<addnntppostingdate> has been renamed to
+I<addinjectiondate> in F<inn.conf>.
+
+=item *
+
+The Injection-Info: header is now generated by B<nnrpd> at injection time
+instead of the deprecated NNTP-Posting-Host: (when I<addinjectionpostinghost>
+is set to true), X-Complaints-To: and X-Trace: headers.  Note that
+I<addnntppostinghost> has been renamed to I<addinjectionpostinghost>
+in F<inn.conf>.  The Path: header of locally posted articles now also
+contains the contents of the NNTP-Posting-Host: header.
+
+=item *
+
+A new I<addinjectionpostingaccount> parameter has been added in
+F<inn.conf>.  When set to true, the Injection-Info: header field
+contains an additional posting-account attribute that mentions the
+username assigned to the user at connection time or after authentication.
+The default value for this parameter is false.
+
+=item *
+
+A few headers are now considered as obsolete by B<nnrpd> at injection
+time:  NNTP-Posting-Date:, NNTP-Posting-Host:, X-Complaints-To:, X-Trace:,
+Also-Control:, Article-Names:, Article-Updates:, and See-Also: headers.
+
+Besides, B<nnrpd> will similarly reject obsolete sendsys, senduuname and
+version control messages.
+
+=item *
+
+The presence of a Subject: header field beginning with C<cmsg > no longer
+causes an article to be interpreted as a control message by B<nnrpd>
+at injection time.
+
+=item *
+
+B<nnrpd> no longer differentiates IHAVE from POST.  Articles injected
+with IHAVE are now treated as though they were injected with POST.
+It means that if the previous behaviour of IHAVE was expected, B<innd>
+should handle itself the connection instead of B<nnrpd>.
+
+=item *
+
+The name of the B<pullnews> configuration file is now F<pullnews.marks>
+located in I<pathdb> when B<pullnews> is run as the news user, or
+otherwise in the running user's home directory.  It was previously
+stored in F<.pullnews> in the running user's home directory (even for
+the news user).
+
+=item *
+
+Fixed a leak of semaphores when using buffindexed.  Thanks to Richard
+Kettlewell for having fixed the issue.
+
+=item *
+
+Building with Libtool is no longer optional.  The B<--enable-libtool>
+option to B<configure> has been removed.
+
+=item *
+
+DESTDIR and non-root installs are now properly supported and documented
+in INSTALL.  The C<make install>, C<make update> and C<make cert>
+steps properly obey DESTDIR.  Besides, it is no longer a requirement
+that the installation step be done by the superuser, as long as the
+user executing the install has supplied a DESTDIR value that points
+to a writable directory, I<and> the person or process performing the
+install corrects the file ownerships when INN is installed on the system
+on which it's going to run.  Thanks to James Ralston for this support.
+
+=item *
+
+When building INN with S<Berkeley DB>, Cyrus SASL, S<Kerberos
+v5>, OpenSSL, or zlib support, no longer add standard locations to
+compiler and linker include flags.  Such default paths are now added
+only if explicitly given to one or more of the B<--with-bdb>,
+B<--with-bdb-include>, B<--with-bdb-lib>, B<--with-sasl>,
+B<--with-sasl-include>, B<--with-sasl-lib>, B<--with-krb5>,
+B<--with-krb5-include>, B<--with-krb5-lib>, B<--with-openssl>,
+B<--with-openssl-include>, B<--with-openssl-lib>, B<--with-zlib>,
+B<--with-zlib-include>, or B<--with-zlib-lib> configure flags (the
+flags ending with C<-include> and C<-lib> are new in S<INN 2.6.0>).
+
+=item *
+
+If the S<Berkeley DB>, Cyrus SASL, S<Kerberos v5>, or OpenSSL SSL
+and crypto libraries are found at configure time, INN will now be
+built with support for them unless respectively the B<--without-bdb>,
+B<--without-sasl>, B<--without-krb5>, or B<--without-openssl> flags
+are explicitly passed to configure.
+
+Note that it was already the default behaviour for zlib support when
+S<Berkeley DB> support was also enabled.
+
+=item *
+
+The configure flag B<--enable-reduced-depends> has been added to request
+that library probes assume shared libraries are in use and dependencies
+of libraries should not be probed.  It therefore tries to minimize the
+shared library dependencies of the resulting binaries on platforms with
+proper shared library dependencies.  This is not enabled by default, and
+is of interest primarily to people building packages for distributions.
+
+=item *
+
+Building INN with Python support now requires the use of S<Python 2.2.0>
+or later as the distutils.sysconfig module used was introduced with
+S<Python 2.2.0>.
+
+=item *
+
+The INN test suite driver is now fully synchronized with the upstream
+version of the C TAP Harness package maintained by Russ Allbery.
+Keeping the INN test suite driver up-to-date will be possible thanks
+to a new B<getc-tap-harness> script in the F<support> directory that
+automatically fetches the latest upstream changes.
+
+Similarly, the new B<getrra-c-util> script permits keeping most of
+the utility and portability functions synchronized with the upstream
+version of the rra-c-util package maintained by Russ Allbery.
+
+=item *
+
+Other minor bug fixes and documentation improvements.
+
+=back
+
+=head1 Changes in 2.5.5
+
+=over 2
+
+=item *
+
+New F<inn.conf> parameters used by B<nnrpd> to fine-tune the TLS/SSL
+configuration have been added:  I<tlsciphers>, I<tlscompression>,
+I<tlseccurve>, I<tlspreferserverciphers>, and I<tlsprotocols>.
+Many thanks to Christian Mock for his contribution that permits
+tightening the level of security provided by TLS/SSL.
+
+=item *
+
+B<innwatch> no longer creates a child process only for sleeping and then
+waits on that process.  The forked-off process only died after it had
+done sleeping, which caused the INN service to drop into maintenance
+state when for instance running under SMF on illumos/Solaris (since
+not all processes die within timeout).  Thanks to Lauri Tirkkonen for
+the patch.
+
+=item *
+
+B<innd> no longer crashes if a channel is supposed to sleep but does not
+define a waker callback function.  Also, the highest file descriptor of
+sleeping channels is now properly updated.  Thanks to Petr Novopashenniy
+for the bug report.
+
+=item *
+
+Add new B<-i> flag to both B<cnfsstat> and B<innwatch> to specify
+how many seconds they should sleep at startup.  It will especially be
+useful in B<rc.news> so that these scripts are actually started and then
+sleep by themselves, instead of being started a minute after B<innd>
+and therefore not being properly stopped if C<rc.news stop> is invoked
+during that minute.
+
+=item *
+
+Add new B<-f> flag to B<innwatch> to specify the configuration file to
+use, in case it is not the default F<innwatch.ctl> file.
+
+=item *
+
+Add new B<-t> flag to B<mailpost> to change, if needed, the default
+directory to use to temporarily store error messages that are sent to
+the newsmaster.  Two paths are now tried by default:  I<pathtmp> as
+set in F<inn.conf>, and then F</var/tmp> if I<pathtmp> is not writable.
+
+=item *
+
+When the creation of a newsgroup needed expanding the tradindexed group
+index, an already-running B<nnrpd> was not automatically noticing newly
+created newsgroups.  Richard Kettlewell fixed that issue.
+
+=item *
+
+Fixed flushing of CNFS buffers when using NFS storage.
+
+=item *
+
+Fixed how B<innupgrade> is executed during an update of an INN
+installation; on a few systems like AIX, it fails to run because its
+taint mode was unproperly declared.
+
+=item *
+
+Several improvements have been contributed to B<pullnews> by Geraint
+Edwards:  the new B<-a> flag adds the Diablo-compatible hashfeed
+ability, the new B<-B> flag triggers header-only feeding, the B<-m>
+flag now permits removing headers matching (or not) a given regexp,
+and B<rnews> reporting is improved.
+
+=item *
+
+B<innreport> now properly takes into account the time B<nnrpd> spends
+writing when using SASL.
+
+
+=item *
+
+B<scanlogs> now only shows the first 50 lines from error log files.
+Otherwise, all of them were present verbatim in the daily report,
+and the resulting e-mail could bounce owing to its length.  Thanks to
+Jeffrey S<M. Vinocur> for the bug report.
+
+=item *
+
+Fixed the use of the legacy AUTHINFO GENERIC command, that has been
+broken since S<INN 2.4.0> (therefore proving readers probably no longer
+use that method to authenticate).  Thanks to Richard Kettlewell for
+having noticed, though, and contributed to tighten the security of the
+replies of this command.
+
+=item *
+
+Add the B<nnrp.access2readers.conf> contribution script written by
+Jeffrey S<M. Vinocur> to convert old-style F<nnrp.access> file to
+F<readers.conf>.
+
+=back
+
+=head1 Changes in 2.5.4
+
+=over 2
+
+=item *
+
+An up-to-date F<control.ctl> file is provided with this release.  You should
+manually update your F<control.ctl> file with the new information recorded
+about Usenet hierarchies.
+
+=item *
+
+A test has been improved in F<innwatch.ctl> so that B<innwatch> no
+longer throttles B<innd> when no overview directory exists.  You should
+manually update your F<innwatch.ctl> file to get this improvement.
+
+=item *
+
+Fixed a long-standing limitation on how B<controlchan> and B<pgpverify>
+were checking the signer of control messages.  They now properly handle
+the case of several UIDs being defined on a single PGP key, as well
+as the presence of spaces into UIDs.  In previous versions of INN,
+a few valid control messages got ignored because of that limitation
+(fido.ger.* and grisbi.* were for instance impacted).
+
+=item *
+
+As the name of the F<radius.conf> configuration file shipped with INN
+for the B<nnrpd> authenticator against a RADIUS server conflicts with
+the libradius package, this file is renamed to F<inn-radius.conf>
+(B<innupgrade> takes care of the rename during the update).
+
+=item *
+
+The attributes hash is now accessible to B<nnrpd> Perl posting filter.
+As a result, F<filter_nnrpd.pl> can make use of it.  Only authentication
+and access Perl hooks could previously use the attributes hash.
+Thanks to Steve Crook for this addition.
+
+=item *
+
+INN now properly builds fine with S<< B<flex> 2.5.36 >> (this version
+introduced a change of type for a variable used by INN).
+
+=item *
+
+When using funnel feeds, B<innfeed> log files were open forever, which
+resulted in empty log files, once rotated by B<scanlogs>.  B<innfeed>
+now reopens its log files upon receiving a HUP signal; this signal
+is in particular sent by B<scanlogs> during log rotation.  Thanks to
+Florian Schlichting for the patch.
+
+=item *
+
+Exploder and process channels are now reopened when C<ctlinnd flushlogs>
+is used.  Otherwise, they could hold open an already deleted F<errlog>
+file.  The issue affected in particular B<controlchan> or B<ninpaths>,
+running as such channels.
+
+=item *
+
+Fixed a buffer overflow when using B<imapfeed> with more than a million
+commands during the same IMAP session.  Thanks to David Binderman for
+the bug report.
+
+=item *
+
+Fixed a segfault occurring in B<innd> on systems where time_t is a
+64-bit integer.  Thanks to S<S.P. Zeidler> for the patch.
+
+=item *
+
+Fixed a segfault occurring in B<nnrpd> when a res block was used in
+F<readers.conf> without the program: key.
+
+=item *
+
+Fixed an issue where users were denied posting because of an overlapping
+buffer copy in a check B<nnrpd> was doing.  Thanks to Florian Schlichting
+for the patch.
+
+=item *
+
+Fixed a regression that occurred in S<INN 2.5.3> regarding the path used
+by default by B<pullnews> for its configuration file.  Instead of looking
+in the running user's home directory, it was looking in the I<pathnews>
+directory set in F<inn.conf>.  Thanks to Tony Evans for the bug report.
+
+=item *
+
+When neither B<wget> nor B<ncftpget> nor B<ncftp> was found at configure
+time, the path to the B<simpleftp> substitution program shipped with
+INN was not properly set in B<innshellvars>, B<innshellvars.pl>, and
+the C<INN::Config> Perl module.  Thanks to Christian Garbs for the
+bug report.
+
+=item *
+
+B<ckpasswd> no longer tries to use the ndbm compatibility layer provided
+by S<Berkeley DB> if S<Berkeley DB> has been built without ndbm support.
+Also add support for gdbm libraries in B<ckpasswd>.
+
+=item *
+
+Fixed a Perl warning in B<inncheck>; using C<defined(@array)> has been
+deprecated since S<Perl 5.16>.
+
+=item *
+
+Fixed the occurrence of an unexpected C<cant select> error generated by
+B<innd>.  Thanks to Paul Tomblin for having caught that long-standing
+issue.
+
+=item *
+
+When building INN with S<Berkeley DB> support, no longer add
+F<-L/usr/lib> to the linker include flags; unconditionally adding it
+may break the build on systems using lib32 and lib64 directories.
+
+=item *
+
+On a fresh INN install, F<motd.innd> and F<motd.nnrpd> are no longer
+installed by default.  Instead, samples for these files are provided
+in I<pathetc>, named differently so that their default contents are
+not displayed to news clients before they get customised.
+
+=item *
+
+Other minor bug fixes and documentation improvements (like the addition
+in the F<readers.conf> man page of the log: and program: parameters in
+res blocks, and the include directive).
+
+=back
+
+=head1 Changes in 2.5.3
+
+Please note that the HTML_STATUS compile-time option has been replaced
+with the I<htmlstatus> parameter in F<inn.conf>.  If you used HTML_STATUS,
+you should set I<htmlstatus> accordingly.
+
+A confusion in the name of a key in F<innfeed.conf> existed in the source
+code.  Make sure that the misspelled, undocumented I<backlog-limit-high>
+key is *not* used in your F<innfeed.conf> file; its real name is
+I<backlog-limit-highwater>.  You should rename the key in case it is present
+in your configuration file.  Otherwise, it will not be taken into account.
+You can run B<inncheck> to verify that the syntax of this file is correct.
+
+It is generally recommended to run B<inncheck> after any changes done to
+configuration files, especially with the new improved version of this script
+shipped with S<INN 2.5.3>, thanks to the hard work of Florian Schlichting
+who added support for the syntax of F<incoming.conf>, F<innfeed.conf>,
+F<readers.conf> and F<storage.conf>.
+
+An up-to-date F<control.ctl> file is provided with this release.  You should
+manually update your F<control.ctl> file with the new information recorded
+about Usenet hierarchies.
+
+=over 2
+
+=item *
+
+When HDR/XHDR/XPAT were used on a new article coming into a newsgroup,
+requesting a header not present in the overview database, the first
+subsequent OVER/XOVER command did not show that article.  A remap of the
+overview data file was missing in B<nnrpd>.  Thanks to Sam Varshavchik
+for the bug report.
+
+=item *
+
+When a header field appeared more than once in an article, it was missing
+from the overview data.  OVER/XOVER, as well as HDR/XHDR/XPAT using the
+overview, were therefore returning an empty field.  The content of the
+first occurrence is now returned, in accordance with S<RFC 3977>.
+
+Perl and Python filters for B<innd> now also properly initialize their
+header variables with the first occurrence of header fields.  (It is
+still the last occurrence for the Perl filter for B<nnrpd>.)
+
+=item *
+
+Fixed a possible plaintext command injection during the negotiation
+of a TLS layer.  The vulnerability detailed in CVE-2011-0411 (and
+CVE-2012-3523, specifically for INN) affects the STARTTLS and AUTHINFO
+SASL commands.  B<nnrpd> now resets its read buffer upon a successful
+negotiation of a TLS layer.  It prevents malicious commands, sent
+unencrypted, from being executed in the new encrypted state of the
+session.
+
+=item *
+
+Fixed a regression that occurred in S<INN 2.5.0> when leading whitespace
+characters have been made significant in header field bodies.  It could
+lead INN to drop articles and throttle itself when running as a slave
+because Xref: header fields generated by other news servers, or even S<INN
+2.4.6>, could contain (valid) leading whitespace.  Thanks to Matija Nalis
+for having caught this bug.
+
+=item *
+
+Fixed an invalid C<431> response to CHECK commands when B<innd> is paused:
+the message-ID of the article to defer was missing.  Also fixed another
+issue in the messages B<innd> replied; when an error occurred during a
+write on a channel, a trailing extra junk byte was added to the reply.
+Thanks to River Tarnell for these bug reports.
+
+=item *
+
+It is now possible to properly generate daily statistics with B<sendinpaths>
+thanks to the new B<-k> and B<-r> flags that permit controlling the interval
+of days for processing dump files.  The new B<-c> flag permits sending a
+copy of the generated e-mail to the newsmaster.
+
+Also fixed an issue with statistics that could be missing or duplicated
+for a couple of days when monthly sent.
+
+The documentation has been updated and mentions a preferred daily run of
+B<sendinpaths>.  This script is a complete rewrite in Perl, and is based
+on Mohan Kokal's initial work.
+
+=item *
+
+B<cnfsheadconf> now properly recognizes continuation lines in
+F<cycbuff.conf>, that is to say lines ending with a backslash (C<\>).
+Thanks to John S<F. Morse> for the bug report.
+
+=item *
+
+The order of CNFS buffers in a metacycbuff is now properly read and written
+by B<cnfsheadconf>.  There previously was a confusion between hexadecimal
+and decimal values.  Thanks again to John S<F. Morse>.
+
+=item *
+
+When the B<-l> flag is given to B<cnfsstat>, the F<cycbuff.conf> and
+F<storage.conf> files are now reloaded if they have been modified since
+the previous output of B<cnfsstat>.
+
+=item *
+
+A single header field line is limited to 998 bytes, per S<RFC 5536>.  B<innd>
+was previously accepting, and also generating Xref: header field lines,
+up to 1022 bytes.  Now, B<nnrpd> (acting as an injecting agent) rejects
+articles which contain header field lines whose length exceeds 998 bytes.
+And B<innd> (acting as a relaying or serving agent) no longer checks that.
+
+=item *
+
+B<nnrpd> advertises the COUNTS, DISTRIBUTIONS, MODERATORS, MOTD and
+SUBSCRIPTIONS variants of the LIST command in response to CAPABILITIES.
+These commands already existed in B<nnrpd> but S<RFC 6048> had not yet
+been published.
+
+=item *
+
+Add support for LIST MOTD in B<innd>.  Consequently, the F<motd.news>
+configuration file which was previously used only by B<nnrpd> is renamed
+to F<motd.nnrpd> (B<innupgrade> takes care of the rename).  B<innd> uses
+the new F<motd.innd> file in I<pathetc> for its message of the day.
+
+=item *
+
+Fixed an issue at configure time that made INN wrongly assume that OpenBSD
+(4.6) didn't support Unix-domain sockets.  Thanks to Wim Lewis for the patch.
+
+=item *
+
+Fixed an issue on systems which do not have a working flock(2) function
+(Solaris, for instance).  B<mailpost> and B<pullnews> are reported not to
+be usable on such systems.  Many thanks to Dennis Davis for the bug report.
+
+A wrapper around B<shlock> is now called in Perl scripts.  The
+INN::Utils::Shlock module has been added for that use.
+
+=item *
+
+Fixed an issue in the Python access hook for B<nnrpd>:  it has not been
+working since S<Python 2.5> on 64-bit platforms, owing to a change to
+Python's C API, using a new Py_ssize_t type definition instead of int.
+Thanks to Raphael Barrois for the patch.
+
+=item *
+
+Improve the stability of the Perl filters for B<innd> and B<nnrpd>:
+properly save and restore the stack pointer when needed.
+
+=item *
+
+The Injection-Date: header, when present, is now used by B<innd> and
+B<makehistory> to determine the posting date of an article.  Otherwise,
+the Date: header is used.
+
+=item *
+
+B<controlchan> now imposes a date cutoff on processing control articles.
+The I<artcutoff> parameter set in F<inn.conf> is used.  Otherwise, without
+that cutoff, old control articles could be maliciously reinjected into
+Usenet, and replayed.  (An unsigned Injection-Date: header field could be
+added to an article that only had a Date: header field.)  A new B<-c> flag
+has been added to B<controlchan> to disable the cutoff check, if needed
+(usually when manually invoking the program).
+
+=item *
+
+B<nnrpd> no longer adds or updates the Path: header field when an article is
+forwarded to a moderator.  It could otherwise lead to rejects at injection
+time when the article was approved by the moderator.
+
+=item *
+
+The X-Trace: header field was not properly generated when an article
+was locally posted.  The field mentioning the IP address was skipped,
+resulting in a wrong syntax for this header.  The local "127.0.0.1" IP
+address is now used.  Besides, C<localhost> is now mentioned instead of
+an obscure C<stdin> in injection header fields.
+
+=item *
+
+Fixed a bug in the frequency B<innfeed> logs its status:  too many useless
+lines were written to F<news.notice>.  Thanks to Florian Schlichting for
+the fix.
+
+=item *
+
+When unset in F<innfeed.conf>, the I<dynamic-method> parameter now
+properly defaults to C<3> (instead of C<0>) and I<use-mmap> to false
+(instead of true).  These two values were already the recommended ones in
+the documentation and the sample file.  Note that I<use-mmap> is only used
+when B<innfeed> is given file names to send instead of storage API tokens,
+which is a fairly rare use case.
+
+=item *
+
+B<innfeed> no longer generates an error message (logged in F<news.err>) when
+a parameter is not defined in F<innfeed.conf>.  All the parameters have a
+default value, so there is no need to warn the user if they are not present
+in F<innfeed.conf>.  Thanks to Dieter Stussy for having reported this problem.
+
+=item *
+
+Implement an upper limit to the number of file descriptors B<innd>
+can handle.  At most (FD_SETSIZE-1) file descriptors can be used.  This
+upper limit now overrides any superior number set with I<rlimitnofile>
+in F<inn.conf>.  Thanks to Steve Crook for the bug report.
+
+=item *
+
+A default timeout on outgoing sockets (using NNTPconnect) has been added
+by Florian Schlichting.  For a long time, there have been occasional
+problems with B<actsync> (and probably other programs) that would hang
+until manually killed or restarted.
+
+=item *
+
+The flag B<-S> has been added to B<innd> by Florian Schlichting.  When used,
+B<innd> reports the errors found in F<incoming.conf> and exits.
+
+=item *
+
+B<pullnews> no longer stops processing newsgroups when an error occur during
+its run (for instance when a newsgroup mentioned in the configuration file
+is removed from an upstream server).  Besides, it can now use authentication
+when posting to the downstream server.
+
+A few other minor bugs have been fixed as for the way B<pullnews> counts
+the articles.
+
+=item *
+
+Fixed the way B<innreport> handles leap years.  It now properly generates
+HTML reports; dates were assumed to be relative to the current year, which
+may break their computation during for instance the whole 2012 leap year.
+Please note that no HTML reports have been lost, and that they will appear
+when INN is updated to this new version.
+
+=item *
+
+A new parameter has been added to F<inn.conf> to determine whether the status
+file that B<innd> can write out (depending on the value of the I<status>
+parameter) is plain text or wrapped in HTML.  It previously only was a
+compile-time option, set to true by default.  Florian Schlichting added
+the I<htmlstatus> parameter to provide a configurable behaviour.
+
+=item *
+
+It is now possible to run a script at the end of the execution of
+B<innshellvars> scripts.  If a file named F<innshellvars.local>,
+F<innshellvars.pl.local> or F<innshellvars.tcl.local> is present and
+executable in I<pathetc>, then it will be executed by the corresponding
+B<innshellvars> script (respectively shell, INN::Config Perl module,
+and Tcl).  A typical use is to add or override variables.
+
+=item *
+
+Add support for wire-formatted articles in B<scanspool>.
+
+=item *
+
+A lot of work on cleaning old perl4-style code has been done by Florian
+Schlichting.
+
+=item *
+
+B<inncheck> now generates a proper non-zero exit value when errors are found,
+and allows quiet mode with the B<-q> flag.  Florian Schlichting has greatly
+improved this script in many regards, especially with a config-syntax parser
+for F<incoming.conf>, F<innfeed.conf>, F<readers.conf> and F<storage.conf>.
+
+=item *
+
+B<inncheck> now properly finds the boundaries of substituted variables in
+F<newsfeeds> thanks to Alexander Bartolich.
+
+=item *
+
+B<docheckgroups> no longer uses awk.  On a few systems, the script was
+failing because of the presence of an old version of awk that has a limit
+in the size of the input it can handle.  Processing large newsgroups files
+was consequently impossible.  B<docheckgroups> now uses Perl instead of awk,
+which solves the issue reported by S<John F. Morse>.
+
+=item *
+
+Other minor bug fixes and documentation improvements.  In particular, the
+I<debug-shrinking>, I<fast-exit> and I<initial-sleep> keys in F<innfeed.conf>
+are now documented.  The function C<filter_end()>, called when Perl filtering
+is turned off, is also documented for the B<innd> and B<nnrpd> Perl filters.
+
+=back
+
+=head1 Changes in 2.5.2
+
+The way checkpoints are handled by B<innreport> for B<innd> and B<innfeed>
+has totally changed to provide more accurate daily statistics.  The first
+Usenet report after an upgrade to S<INN 2.5.2> will probably contain
+incorrect statistics for incoming and outgoing articles because the
+beginning of the log files that will be used was generated by a previous
+version of INN.
+
+A new version of F<innreport.conf> is shipped with S<INN 2.5.2> but, in
+order to preserve any local changes, will not be automatically installed
+with make update.  The changes are minor and not mandatory for the
+upgrade.
+
+=over 2
+
+=item *
+
+Julien Elie has implemented in B<innd> the new version of the NNTP
+protocol described in S<RFC 3977>, S<RFC 4643> and S<RFC 4644>, and
+B<innd> now recognizes the CAPABILITIES command.  Despite these standards,
+three commands (IHAVE, CHECK and TAKETHIS) will continue, for
+interoperability reasons, to return a reject code (respectively C<435>,
+C<438>, and C<439>) when the command contains a syntax error instead of
+C<501>.  The mandatory username argument for authenticated peers is not
+enforced in S<INN 2.5.2> but will be be enforced by S<INN 2.6.0> when it
+is released.
+
+Major improvements are:
+
+=over 2
+
+=item *
+
+B<innd> now has a decent parser for NNTP commands.  The parser is more
+correct (commands like C<< IHAVEZ<><mid> >>, without a space between the
+command and its argument, are no longer valid) and allows leading and
+trailing whitespaces in commands.  B<innd> also now checks the length of
+the NNTP command sent by the client.  If the command contains more than
+512 bytes (or 497 bytes for an argument), an error is returned and the
+command is discarded.  After ten unrecognized commands, B<innd> closes the
+connection with the appropriate code (C<400> instead of C<500>).
+
+=item *
+
+The output of the HELP command specifies the arguments expected by NNTP
+commands, similar to B<nnrpd>'s HELP command.
+
+=item *
+
+LIST ACTIVE, LIST ACTIVE.TIMES and LIST NEWSGROUPS now allow an optional
+wildmat argument to restrict the results of those commands to specific
+newsgroups.
+
+=item *
+
+When using HEAD or STAT with an article number or a range, C<412> (no
+group selected) is now returned instead of C<501> (syntax error).
+
+=back
+
+=item *
+
+Jeffrey S<M. Vinocur> has implemented support in both B<innd> and B<nnrpd>
+for whitespace in usernames/passwords provided with AUTHINFO USER/PASS.
+They were previously treated as invalid arguments or incorrectly parsed.
+B<innd> and B<nnrpd> now treat everything after the first whitespace
+character following AUTHINFO USER/PASS, up to, but not including, the
+final CRLF, as the username/password, in conformity with S<RFC 4643>.
+
+=item *
+
+The syntax of message-IDs is now based on S<RFC 5536> (USEFOR) instead of
+S<RFC 1036>.  The major change is that quoted-pairs have been removed from
+the syntax.
+
+=item *
+
+The Perl and Python filters for B<innd> now check the message-ID of
+articles arriving through TAKETHIS.  Only CHECK and IHAVE commands
+previously used them.
+
+=item *
+
+Case-insensitive matches are now used for distributions, path identities,
+IMAP commands, header names, and control commands.  (Newsgroups are still
+matched case-sensitively.)  Message-IDs are case-sensitively matched,
+except for history hashes.
+
+=item *
+
+The new Archive:, Archive-At:, Comments:, and Summary: header fields
+defined in S<RFC 5064> and S<RFC 5536> can be used in B<innd> filters.
+B<nnrpd> now checks at injection time that an article does not contain an
+Injection-Info: header, that an Injection-Date: header (if provided) is
+valid, and that the Path: header does not contain C<.POSTED>.  Note that
+INN does not yet generate these two injection fields or include the new
+Path: header field C<.POSTED> keyword.  These new features will be in the
+next major release of INN.
+
+=item *
+
+LIST SUBSCRIPTIONS now accepts an optional wildmat argument to restrict
+the results of this command to specific newsgroups.
+
+=item *
+
+B<nnrpd> now supports a new LIST variant named COUNTS.  LIST COUNTS is a
+combination of LIST ACTIVE and GROUP.  It returns the same result as LIST
+ACTIVE except that the number of articles in a newsgroup is inserted
+before its status.
+
+=item *
+
+A new flag has been added to F<newsfeeds> entries: C<Aj>, when present,
+says to feed articles accepted and filed in C<junk> (due to I<wanttrash>)
+to peers based on their F<newsfeeds> feed patterns applied to the
+Newsgroups: header as though the article were accepted and all those
+groups were locally carried.  This is useful if you want to run INN with a
+minimal F<active> file and propagate all posts.  Thanks to Andrew Gierth
+for the patch.
+
+=item *
+
+A new parameter has been added to F<inn.conf>: I<logtrash> defines whether
+a line for articles posted to groups not locally carried by the news
+server should be added in the F<news> log file to report unwanted
+newsgroups.  The default is true but it can be useful to set it to false
+(especially when I<wanttrash> is also used).
+
+=item *
+
+The B<procbatchdir> keyword has been added to B<news.daily> to specify the
+backlog directory of B<innfeed>.  This is useful when several instances of
+B<innfeed> are running or when its configuration file is not the default
+one.
+
+=item *
+
+B<sm> now supports a new flag, B<-c>, which shows a decoded form of the
+storage API token.  This was previously done by the contrib B<showtoken>
+script developed by Olaf Titz and Marco d'Itri.
+
+=item *
+
+The B<O> flag in F<newsfeeds> now relies on the contents of the
+Injection-Info: header field if it is present to determine the origin of
+an article.  It falls back on X-Trace: if there is no Injection-Info:
+header field.
+
+=item *
+
+A new "unsigned long" type bas been added to the configuration parser.  It
+will properly warn the news administrator when a variable supposed to be
+positive contains a negative integer.  It will prevent INN from crashing
+due to misconfiguration at several places where it did not expect negative
+values.
+
+=item *
+
+B<innxbatch> and B<innxmit> now recognize the new C<403> code introduced
+by S<RFC 3977> for a problem preventing the requested action from being
+taken.
+
+=item *
+
+HDR and OVER commands now return the correct C<423> code (instead of
+C<420>) when the current article number is used but the article no longer
+exists.
+
+=item *
+
+B<actsync>, B<inews>, B<innxbatch>, B<innxmit>, B<nntpget> and B<rnews>
+can now authenticate to news servers which only expect a username, without
+password, conforming to S<RFC 4643>.
+
+=item *
+
+The keyword generation code now generates a Keywords: header only if the
+original article does not already have one.  The generated Keywords:
+header no longer begins with a comma.  If keyword generation is set to
+true in F<inn.conf> but the Keywords: header is not stored in the
+overview, the news administrator is warned and keyword generation
+deactivated, since it exists only to populate the overview data.
+
+=item *
+
+Two segfaults in keyword generation were fixed.  The first occurred when
+an article already had a Keywords: header longer than the I<keylimit>
+parameter.  The second was caused by a possible invalid pointer beyond the
+newly allocated Keywords: header.
+
+=item *
+
+Fixed B<innd> handling of empty lines.  B<innd> was not properly
+discarding an empty command and was closing the connection when it
+received only whitespace in a command.
+
+=item *
+
+Fixed a bug in how B<innd> responded to reader commands when readers were
+not allowed.  A superfluous blank line was sent in its response.
+
+=item *
+
+Fixed a bug in B<innd>'s response to TAKETHIS when authentication is
+required.  Previously, C<480> code was returned immediately without
+accepting the multi-line data block first, which broke synchronization in
+the NNTP protocol.
+
+=item *
+
+Fixed a bug in recognizing the article terminator when empty articles were
+fed to B<innd> via IHAVE or TAKETHIS, leading to treating subsequent NNTP
+commands as part of the article.
+
+=item *
+
+When B<innd> could not provide information for LIST ACTIVE.TIMES and LIST
+NEWSGROUPS, it was returning an invalid error message without a response
+code.  The proper C<503> answer code is now returned.
+
+=item *
+
+When an unauthenticated user tried to post an article, B<nnrpd> replied
+C<440> (posting not allowed) instead of the correct C<480> (authentication
+required) response if the user might be able to post after authentication.
+Thanks to Daniel Weber for the bug report.
+
+=item *
+
+Fixed a bug in both B<innd> and B<nnrpd> answers to LIST commands where
+the output was not checked for valid dot stuffing.
+
+=item *
+
+Fixed a bug leading to junked non-control articles being sent to
+control-only feeds, and also fixed handling of poisoned control groups.
+Thanks to Andrew Gierth for the patch.
+
+=item *
+
+Fixed a bug in B<innreport> leading to incorrect summing of B<innd> stats
+when I<hostname> was set to an IPv6 address instead of a fully qualified
+domain name.  Thanks to Petr Novopashenniy for the bug report.
+
+=item *
+
+Changed how B<innreport> uses B<innd> and B<innfeed> checkpoint messages.
+Previously, connections held open for multiple days led to skewed and
+incorrect statistics on how many articles had been received or sent.  The
+count is now more accurate and, for each connection of a feed, only
+depends on I<incominglogfrequency> in F<inn.conf> and I<stats-period> in
+F<innfeed.conf>.
+
+=item *
+
+Fixed a bug in B<nnrpd> Perl filter: a header field whose name begins with
+the name of a standardized header field was not properly handled.
+
+=item *
+
+Fixed a bug in how B<innd> was parsing Message-ID: and Supersedes: headers
+which contained trailing whitespace.  The article was corrupted by an
+unexpected "\r" in the middle of the header.  B<nnrpd> now checks the
+syntax of the Message-ID: header field, if present.
+
+=item *
+
+Fixed various bugs in how leading whitespace was treated in headers.  The
+HDR, XHDR and XPAT commands were not properly showing leading whitespace
+in header values.  Lone "\n" and "\r" characters are now changed into
+spaces and "\r\n" is just removed.  B<archive>, B<makehistory>, and
+B<tdx-util> now keep leading whitespace in headers when generating
+overview data, and B<archive> now changes "\n" (when not preceded by "\r")
+into a space when generating overview data.
+
+=item *
+
+Fixed a bug in the generation of overview data which may corrupt
+previously generated overview data when a pseudo Xref: header field is
+injected in an extra overview field.
+
+=item *
+
+Fixed a bug in the parsing of the I<ovgrouppat> wildmat in F<inn.conf>
+that prevented overview data from being generated when poisoned groups
+were specified but a latter sub-pattern matched the group.  A uwildmat
+expression is now correctly handled, and a potential segfault has been
+fixed.  Thanks to Dieter Stussy for the bug report.
+
+=item *
+
+Fixed a bug when HDR, XHDR and XPAT were used when I<virtualhost> was set
+to true in F<readers.conf>.  The Xref: header of articles posted to only
+one newsgroup appeared empty.
+
+=item *
+
+Fixed a bug in B<tdx-util> in parsing empty overview fields when called
+with B<-A> or B<-F>.
+
+=item *
+
+Fixed a bug in B<cvtbatch>, which was returning only the size of the
+headers of an article when the C<b> parameter was used with the B<-w>
+flag.  It now correctly returns the size of the whole article, which is
+what C<b> was documented to do.  B<cvtbatch> also has a new C<t>
+parameter, which can be used with the B<-w> flag to retrieve the arrival
+time of an article.
+
+=item *
+
+Fixed a bug in how B<mailpost> handles cross-posting feature.  It was not
+properly detaching from B<sendmail>.  Thanks to Harald Dunkel for the
+patch.
+
+=item *
+
+Fixed a bug in the F<newsfeeds> B<C> flag: the count of followup groups
+was one less than the real number.  When the value of the Followup-To:
+header field is C<poster>, it is no longer considered to be a followup.
+Thanks to Dieter Stussy for the patch.
+
+=item *
+
+When using tradindexed, the overview data for a cancelled article is now
+immediately removed from the overview.  Thanks to Lars Magne Ingebrigtsen
+for the patch.
+
+=item *
+
+B<batcher> has not supported the retrieval of an article with its file
+name for a long time.  The B<-S> flag has therefore been removed.
+
+=item *
+
+B<inews> no longer rejects articles that contain more than 50 header
+fields.  Thanks to Torsten Jerzembeck for the bug report.
+
+=item *
+
+B<news.daily> no longer sends superfluous mails when the B<nomail> keyword
+is given.  Mail is only sent when there is real output.  Previously, there
+would always be headings and empty lines left over from the structuring of
+the full report, which are now omitted.  Also, the output of programs
+executed with B<postexec> is now included in the regular mail.  Thanks to
+Florian Schlichting for the patch.
+
+=item *
+
+B<innconfval> no longer maps NULL string or list values to an empty string
+or list and instead maps them to undefined values.  This fixes an issue
+reported by Kamil Jonca: B<nnrpd> was inserting an empty Organization:
+header when the I<organization> parameter in F<inn.conf> was unset.
+
+=item *
+
+Other minor bug fixes and documentation improvements.
+
+=back
+
+=head1 Changes in 2.5.1
+
+=over 2
+
+=item *
+
+Fixed a segfault in B<imap_connection> which could occur when SASL
+was used.
+
+=item *
+
+Fixed a segfault in the keyword generation code which was assuming
+that an article was nul-terminated.  Fixed another segfault in the
+keyword generation code when an article already contained a
+Keywords: header.  Thanks to Nix for the bug reports.
+
+=item *
+
+Owing to the US-CERT vulnerability note VU#238019, Cyrus SASL library
+has slightly changed.  B<imap_connection> and B<nnrpd> now handle
+that change.  Otherwise, some answers are too long to be properly
+computed during SASL exchanges.
+
+=item *
+
+Fixed a memory allocation problem which caused B<nnrpd> to die when
+retrieving via HDR/XHDR/XPAT the contents of an extra overview field
+absent from the headers of an article.  The NEWNEWS command was also
+affected on very rare cases.  Thanks to Tim Woodall for the bug report.
+
+=item *
+
+HDR/XHDR/XPAT answers are now robust when the overview database is
+inconsistent.  When the overview schema was modified without the overview
+database being rebuilt, wrong results could be returned for extra fields
+(especially a random portion of some other header).  The desired header
+name is now explicitly searched for in the overview information.
+
+=item *
+
+Fixed the source which is logged to the F<news> log file for local
+postings when the local server is not listed in F<incoming.conf>.
+A wrong name was used, taken amongst known peers.  The source is now
+logged as C<localhost>.
+
+=item *
+
+Fixed a bug in the timecaf storage method:  only the first 65535 articles
+could be retrievable in a CAF, though everything was properly stored.  (A
+Crunched Article File contains all the articles that arrive to the news
+server during 256 seconds.)
+
+The storage token now uses 4 bytes to store the article sequence number
+for timecaf, instead of only 2 bytes.  Thanks to Kamil Jonca for the
+bug report and also the patch.
+
+=item *
+
+Fixed a bug in both timecaf and timehash which prevented them from working
+on systems where short ints were not 16-bit integers.
+
+=item *
+
+When there is not enough space to write an entire CAF header, the timecaf
+storage manager now uses a larger blocksize.  On 32-bit systems, the CAF header
+is about 300 bytes, leaving about 200 bytes for the free bitmap index
+(the remaining of a 512-byte blocksize).  On 64-bit systems, the size
+of the CAF header could exceed 512 bytes, thus leaving no room for the
+free bitmap index.  A S<1 KB> blocksize is then used, or a larger
+size if need be.
+
+=item *
+
+A new CNFS version has been introduced by Miquel van Smoorenburg in
+the CNFS header.  CNFSv4 uses S<4 KB> blocks instead of S<512 bytes>,
+which more particularly makes writes faster.  CNFSv4 supports
+files/partitions up to S<16 TB> with a S<4 KB> blocksize.
+
+Existing CNFS buffers are kept unchanged; only new CNFS buffers are
+initialized with that new version.
+
+=item *
+
+B<grephistory -l> now returns the contents of the expires history field
+as well as the hash of the message-ID.  Besides, when the storage API
+token does not exist, B<grephistory -v> now also returns the hash
+of the requested message-ID.
+
+=item *
+
+The check on cancel messages when I<verifycancels> is set to true
+in F<inn.conf> has been changed to verify that at least one newsgroup
+in the cancel message can be found in the article to be cancelled.
+This new feature is from Christopher Biedl.
+
+The previous behaviour was to check whether the cancel message is
+from the same person as the original post, which is extremely easy
+to spoof; besides, S<RFC 5537> (USEPRO) mentions that "cancel control
+messages are not required to contain From: and Sender: header fields
+matching the target message.  This requirement only encouraged cancel
+issuers to conceal their identity and provided no security".
+
+=item *
+
+The way the C</remember/> line in F<expire.ctl> works has changed.
+History retention for an article was done according to its original
+arrival time; it is now according to its original posting date.
+Otherwise, unnecessary data may be kept too long in the F<history>
+file.
+
+To achieve that, the HISremember() function in history API now
+expects a fourth parameter:  the article posting time.
+
+Note that article expiration has not changed and is still based
+on arrival time, unless the B<-p> flag is passed to B<expire>
+or B<expireover>, in which case posting time is used.
+
+=item *
+
+The default value for C</remember/> has changed from C<10> to C<11>
+because it should be one more than the I<artcutoff> parameter
+in F<inn.conf>, so that articles posted one day into the future
+are properly retained in history.
+
+=item *
+
+B<auth_krb5> has been rewritten by Russ Allbery to use modern
+Kerberos APIs.  Note that using B<ckpasswd> with PAM support
+and a Kerberos PAM module instead of this authenticator is still
+recommended.
+
+=item *
+
+A new B<-L> flag has been added by Jonathan Kamens to B<makehistory>
+so as to specify a load average limit.  If the system load average exceeds
+the specified limit, B<makehistory> sleeps until it goes below the limit.
+
+=item *
+
+As UTF-8 is the default character set in S<RFC 3977>, C<ctlinnd pause>,
+C<ctlinnd readers>, C<ctlinnd reject>, C<ctlinnd reserve>, C<ctlinnd throttle>
+and C<nnrpd -r> commands now require the given reason to be encoded in UTF-8,
+so that it can be properly sent to news readers.  The creator's name given
+to C<ctlinnd newgroup> is also expected to be encoded in UTF-8.
+
+=item *
+
+The output of consistency checks for article storage and the F<history>
+file no longer appears by default when C<cnfsstat -a> is used.  A new B<-v>
+flag has been added to B<cnfsstat> so as to see it.
+
+=item *
+
+The default path for TLS certificates has changed from I<pathnews>/lib
+to I<pathetc>.  It only affects new INN installations or generations of
+certificates with C<make cert>.  Besides, a default value has been
+added to I<tlscapath> because it is required by B<nnrpd> when TLS
+is used.
+
+=item *
+
+gzip(1) is now the default UUCP batcher in B<send-uucp> instead of
+compress(1) because B<gzip> is more widely available than B<compress>,
+due to old patent issues.  Note that there is no impact on decompression
+as it is handled by B<rnews>.
+
+=item *
+
+B<cnfsheadconf> now uses the Perl core module C<Math::BigInt> rather
+than the deprecated F<bigint.pl> library.  When used without specifying
+a CNFS buffer, it now properly displays the status of all CNFS buffers.
+
+=back
+
+=head1 Upgrading from 2.4 to 2.5
+
+The following changes require your full attention because a manual intervention
+may be needed:
+
+=over 2
+
+=item *
+
+In order to process control messages, B<controlchan> now needs the
+C<MIME::Parser> module.  Packages are available from most distributions,
+or you can install the module directly from CPAN (C<MIME-tools> in
+F<modules/by-module/MIME/>, for instance on ftp.perl.org).
+
+S<Perl 5.8.0> or later is recommended for INN.  If you are using an earlier
+version, you will also need the C<Encode> module for correct processing of
+control messages.  (It is included with Perl itself in 5.8.0 and later.)
+
+=item *
+
+Checkgroups control messages are now differently handled by B<controlchan>:
+all matching lines in F<control.ctl> will be used for a given checkgroups
+and a B<doit> action will really be executed (adding, removing and changing
+the status of newsgroups).  You should make sure that your local
+configuration does not rely on the previous behaviour of only mailing
+changes, without actually performing them.
+
+=item *
+
+You should use the new F<control.ctl.local> file shipped with INN in
+I<pathetc> and, at the same time, update your F<control.ctl> and
+F<moderators> files.  Also make sure that your F<active.times>,
+F<distrib.pats> and F<newsgroups> files are properly encoded in UTF-8, as
+it is strongly recommended by S<RFC 3977>.
+
+=item *
+
+The F<overview.fmt> file is no longer used by INN.  Two new parameters
+have been added to F<inn.conf>:  I<extraoverviewadvertised> and
+I<extraoverviewhidden>.  Although B<innupgrade> takes care of the
+change during C<make update>, you should make sure that your overview
+database is consistent with all the fields declared in F<overview.fmt>
+because they will all be advertised, and C<Xref:full> forced as the
+eighth overview field.  See the inn.conf(5) man page for more information
+about these parameters.
+
+=item *
+
+The B<innreport> configuration file has slightly changed.  The new
+F<innreport.conf> file shipped with INN should be used and your possible
+changes backported to this new version.
+
+=item *
+
+The $SPOOLBASE variable has been renamed to $SPOOLDIR in B<innshellvars>
+in order to be more consistent.  It impacts shell scripts only.  If you
+import B<innshellvars> and use that variable in your scripts, you will
+have to rename it.
+
+=item *
+
+B<gpgverify> is no longer included in INN, B<pgpverify> now has better
+support for GnuPG and should be used instead.
+
+=item *
+
+The B<auth_smb> authenticator program to check passwords with an SMB
+authentication is no longer included in INN.  It was a stripped-down
+version of pam_smbpass, wasn't maintained, and likely had security
+problems.  To authenticate to an SMB server such as Samba, use PAM and
+B<ckpasswd>'s PAM support instead.
+
+=back
+
+The parameters used by B<nnrpd> to provide TLS support are now
+I<tlscafile>, I<tlscapath>, I<tlscertfile> and I<tlskeyfile> in
+F<inn.conf>.  The F<sasl.conf> file used for that in previous versions of
+INN is obsolete.  B<innupgrade> takes care of the change during C<make
+update>.
+
+The I<nntpactsync> parameter has been renamed to I<incominglogfrequency>
+in F<inn.conf>; B<innupgrade> handles this renaming during the update.
+
+In F<newsfeeds>, B<innfeed> should be run directly rather than through
+B<startinnfeed>.  B<innupgrade> will attempt to take care of this
+modification during C<make update>.
+
+When starting B<innd> by hand, B<innd> can just be run directly rather
+than using B<inndstart>.  If you get error messages about resetting the
+file descriptor limits, you may need to increase the file descriptor
+limits.  See the sample init script in F<contrib> for an example of how to
+do this.
+
+If you are upgrading from a version prior to S<INN 2.4>, see also
+L<Upgrading from 2.3 to 2.4>.
+
+=head1 Changes in 2.5.0
+
+=over 2
+
+=item *
+
+Ken Murchison has contributed SASL authentication support for B<nnrpd>,
+implementing the AUTHINFO SASL section of S<RFC 4643>.  If the
+B<--with-sasl> option is given to C<configure>, B<nnrpd> will be able to
+authenticate clients via secure SASL mechanisms.
+
+=item *
+
+Julien Elie has implemented in B<nnrpd> the new version of the NNTP
+protocol described in S<RFC 3977>, S<RFC 4642> and S<RFC 4643>.
+Consequently, B<nnrpd> now recognizes the CAPABILITIES command, the
+HDR and LIST HEADERS commands, the second optional argument to specify
+a range of articles to LISTGROUP, the OVER command, as well as the
+C<:bytes> and C<:lines> metadata items.
+
+=item *
+
+Heath Kehoe has added the ability to compress overview data before
+it is stored in ovdb.  It significantly improves the performance
+of this storage method and reduces the time spent by B<expireover>.
+See the new B<--with-zlib> option to C<configure> and the ovdb(5)
+man page.
+
+=item *
+
+Alexander Bartolich has greatly improved B<innreport> and especially
+its XHTML output (a XSL transformation is also provided, if needed,
+in F<innreport-filter.xslt>, in the F<contrib> directory).
+
+=item *
+
+B<inndstart> and B<startinnfeed> are no longer part of INN and are no
+longer used.  Instead, a separate setuid root helper program written by
+Russ Allbery is used to bind to the news ports (and does only that),
+and is run by B<innd> and B<nnrpd> when necessary.  This means that INN
+may not be able to increase file descriptor limits for itself the way
+that it could before.  If you get error messages about resetting the file
+descriptor limits, you may need to increase the file descriptor limits
+as root before running B<rc.news> as the news user.  See the sample init
+script in F<contrib> for an example of how to do this.  More information
+on file descriptor limits can be found in F<INSTALL>.
+
+=item *
+
+INN's IPv6 support was largely rewritten by Russ Allbery.  IPv4 and IPv6
+are now handled through the same code wherever possible, the new
+IPv6-aware APIs are used everywhere possible, and replacement functions
+are provided for systems that don't have them yet.  The network code is
+now much more centralized, eliminating lots of duplicate code and adding
+better IPv6 support to some utilities.
+
+=item *
+
+INN now uses S<autoconf 2.61> or later for configuration.  As a result,
+some C<configure> options have changed slightly and more of the standard
+B<--*dir> options should be supported in lieu of the old INN-specific
+options.  See C<configure --help> for the available options.
+
+=item *
+
+Thanks to Kirill Berezin, the buffindexed overview method now supports
+buffers larger than S<2 GB>.  It is not necessary to compile INN with
+large file support to use such large buffers with buffindexed.
+Buffindexed is now also more robust with mmaped files and uses more
+optimized data placement.
+
+=item *
+
+B<tinyleaf>, a miniature IHAVE-only leaf server written by Russ Allbery,
+is now included.  See the tinyleaf(8) man page for more information.
+
+=item *
+
+B<controlchan> recognizes the new application/news-groupinfo entity
+described in USEPRO and can handle character set conversions of newsgroup
+descriptions.  The C<MIME::Parser> and C<Encode> modules are used.
+Processing control messages has been greatly improved, especially
+checkgroups:  the F<active> and F<newsgroups> files are now properly
+updated when they are processed, and all matching lines in F<control.ctl>
+for a given checkgroups are honoured (which for instance allows using
+both B<drop> and B<doit> actions for the same checkgroups message).
+
+A new F<control.ctl.local> file has also been added in I<pathetc>.  Rules
+set in that file override rules in F<control.ctl>, allowing administrators
+to specify local rules for some control messages without modifying the
+F<control.ctl> configuration file that comes with INN.  It also specifies
+encodings to use for the F<newsgroups> file.  By default, UTF-8 will be
+used for newsgroup descriptions, as strongly recommended by S<RFC 3977>.
+
+=item *
+
+The Perl and Python I<filter_mode> hooks are now called when B<innd> is
+shutting down via either C<ctlinnd shutdown> or C<ctlinnd xexec> with a
+new mode value of C<shutdown>.  This will allow the Perl hooks to save
+filter data across B<innd> restarts without requiring that the news
+administrator throttle the server first.  (Python already had a separate
+close hook that is also called.)
+
+=item *
+
+The legacy B<innshellvars.pl> script has been replaced with a real INN
+Perl module C<INN::Config> for Perl programs.  The location of Perl
+modules can be set with the B<--with-libperl-dir> option to C<configure>.
+All Perl scripts shipped with INN have been converted to use that module.
+You may want to consider using C<INN::Config> in your Perl scripts, though
+B<innshellvars.pl> is still provided with INN.
+
+=item *
+
+Support for embedded Tcl filters in B<innd> has been removed.  It hasn't
+worked for some time and causes B<innd> crashes if compiled in (even if
+not used).  If someone wants to step forward and maintain it, we recommend
+starting from scratch and emulating the Perl and Python filters.
+
+=item *
+
+If I<strippath> is set in F<readers.conf>, the whole user-supplied Path:
+header will now be stripped.  Previously, the final component of the
+user-supplied Path: would still be retained.
+
+=item *
+
+B<news2mail> can now set the envelope-from address of the mails it sends.
+A third optional part in F<news2mail.cf> entries has been added by
+S<D. Stussy> to achieve that.
+
+=item *
+
+The B<-g> option to B<nnrpd> is no longer supported.  If you are verifying
+passwords against the system password database, see the ckpasswd(8) man
+page, and in particular the B<-s> option.  (A much better idea would be to
+just use PAM, which B<ckpasswd> supports.)
+
+=item *
+
+Fixed a bug in C<ctlinnd renumber> which was resetting the low and high
+water marks of empty newsgroups in the F<active> file.  This command
+now makes the low water mark one more than the real high water mark.
+The answers to LIST ACTIVE, GROUP and LISTGROUP have also been fixed
+to do that.
+
+=item *
+
+Support for bzip2-compressed batches (with B<bunbatch>) has been added.
+
+=item *
+
+B<news.daily> now processes B<innfeed> dropped files during daily
+maintenance, running B<procbatch>.
+
+=item *
+
+Support for I<runasuser> and I<runasgroup> parameters in F<inn.conf>
+allows setting the news user and the news group under which the news server
+runs.  Thanks to Ivan Shmakov for this feature.
+
+New other options have been added to configuration files:  I<ignore> in
+F<incoming.conf>, I<logstatus>, I<nnrpdflags> and I<verifygroups> in
+F<inn.conf>, and I<log-time-format> in F<innfeed.conf>.
+
+The B<--with-http-dir> option has also been added to C<configure> to set
+I<pathhttp> in F<inn.conf>.
+
+The I<nntpactsync> parameter has been renamed to I<incominglogfrequency>
+in F<inn.conf>.
+
+=item *
+
+The F<sasl.conf> file has been removed in favour of new parameters in
+F<inn.conf> to deal with TLS support:  I<tlscafile>, I<tlscapath>,
+I<tlscertfile> and I<tlskeyfile>.
+
+=item *
+
+The F<overview.fmt> file has been removed in favour of new parameters
+in F<inn.conf> to deal with transition periods to accommodate
+overview reconfigurations.  It is now possible to specify on the one
+hand the fields that should be advertised by B<nnrpd> in response to
+LIST OVERVIEW.FMT and used for HDR, XHDR and XPAT requests (see the new
+I<extraoverviewadvertised> parameter) and on the other hand the
+additional fields that should be silently generated (see the new
+I<extraoverviewhidden> parameter).
+
+=item *
+
+Support for S<Berkeley DB> versions prior to 4.3 has been dropped.  You
+will have to use at least S<Berkeley DB 4.4>; the recommended version is
+4.7.
+
+=item *
+
+INN now builds entirely free of warnings from GCC with fairly aggressive
+warning options enabled.  This involved lots of cleanup of const strings,
+signed versus unsigned type handling, correcting printf formats, and other
+changes that fixed obscure bugs and made INN's code more robust.  Russ
+Allbery has also done considerable cleanup work on some of INN's
+internals, simplifying, refactoring, and removing duplicate code.
+
+=item *
+
+INN's test suite is now much more comprehensive and tests some high-level
+functions as well as more of the portability and utility function layer.
+
+=item *
+
+A lot of work has been done on documentation:  improvements of existing
+documents, new documentation, and proof-reading.  Sample configuration
+files are also more detailed.
+
+=back
+
+=head1 Changes in 2.4.6
+
+=over 2
+
+=item *
+
+Fixed the segfault of the radius authenticator when none of the radius
+servers respond.  Thanks to Matija Nalis for this patch.
+
+=item *
+
+Fixed a lost initialization in buffindexed, which resolves a potential
+segfault, thanks to a patch by Kirill Berezin.
+
+=item *
+
+INN now properly supports S<Perl 5.10.0> (and also 5.8.9); Perl filters
+were causing B<innd> to segfault on a few systems like FreeBSD.
+
+=item *
+
+Fixed a long-standing bug which affected Perl hooks for B<innd>:
+the variable containing the body of an article was not properly
+created, which caused regular expressions matching new lines to fail.
+It especially affected filters like Cleanfeed which sometimes
+failed to detect unwanted articles.
+
+To fix that issue, Julien Elie added the use of a shared string,
+available since S<Perl 5.7.2>, with a fall back to a slower but
+reliable copy of such bodies in case the function is not available.
+Using a Perl version superior to 5.7.2 is therefore recommended.
+
+=item *
+
+Fixed two bugs which could prevent B<nnrpd> from being run as a daemon
+in FreeBSD.  Thanks to Johan van Selst for having identified the
+problem and to Kai Gallasch for having provided a testing FreeBSD server.
+The listening address was not initialized to C<::0> or C<0.0.0.0> when
+the B<-b> flag was not used and an incorrect size was given when IPv6
+was enabled and the binding done using IPv4.
+
+=item *
+
+Some annoying assertion failures occurring in B<innfeed> have been fixed
+by Russ Allbery and Julien Elie.
+
+=item *
+
+Fixed a bug in B<mod-active> for aliased newsgroups.  Only C<=> was written
+to the F<active> file.  Thanks to S<D. Stussy> for this patch.
+
+=item *
+
+Fixed a bug which caused B<innd> not to honour the B<Ad> flag in F<newsfeeds>.
+
+=item *
+
+Fixed a bug in the IP address displayed for C<localhost> in B<innd>'s
+status file.  It was not correctly initialized.
+
+=item *
+
+Fixed a permission issue:  XHDR and XPAT were not checking the rights
+the user had to read articles when accessing them by their message-ID.
+
+=item *
+
+Fixed a bug in the replies of XHDR, XOVER and XPAT when the newsgroup
+is empty.  Two initial replies were sent instead of one:  the right C<420>
+code followed by a wrong C<224> code.
+
+=item *
+
+When no newsgroup is selected, LISTGROUP now returns the right C<412> code
+(instead of C<481>).
+
+=item *
+
+B<inncheck> now uses a range of permissions to see whether the file modes
+are correctly set.  Therefore, different configurations depending on the
+security the user wants to enforce on his system are possible.
+
+=item *
+
+A new improved version of B<docheckgroups> is shipped with INN.  The B<-u>
+flag permits updating automatically the F<newsgroups> file (with a proper
+number of tabulations and an alphabetical sort), removing obsolete
+descriptions and adding new ones.  A second argument on command-line permits
+specifying which newsgroups should not be checked, so as not to treat them.
+
+=item *
+
+An I<email=> keyword has been added by James Ralston to B<news.daily>
+in order to supply another mail address than the one set at configure time
+for Usenet daily reports.
+
+=item *
+
+An updated F<moderators> file with information about the aioe.*, perl.*
+and si.* hierarchies is provided; F<control.ctl> is also up to date.
+
+=item *
+
+INN supports S<Berkeley DB 4.7>, which is the recommended version
+to use owing to various bugs affecting previous versions of S<Berkeley DB>.
+
+=item *
+
+Other minor bugs have also been fixed.
+
+=back
+
+=head1 Changes in 2.4.5
+
+=over 2
+
+=item *
+
+Fixed the "alarm signal" around C<SSL_read> in B<nnrpd>:  it allows
+a proper disconnection of news clients which were previously hanging
+when posting an article through a SSL connection.  Moreover, the
+I<clienttimeout> parameter now works on SSL connections.  Thanks to
+Matija Nalis for the patch.
+
+=item *
+
+SO_KEEPALIVE is now implemented for SSL TCP connections on systems
+which support it, allowing system detection and closing the dead
+TCP SSL connections automatically after system-specified time.  Thanks
+to Matija Nalis for the patch.
+
+=item *
+
+Fixed a segmentation fault when an article of a size greater than remaining
+stack is retrieved via SSL.  Thanks to Chris Caputo for this patch.
+
+=item *
+
+Fixed a few segfaults and bugs which affected both Python B<innd> and B<nnrpd>
+hooks.  They no longer check the existence of methods not used by the hooked
+script.  An issue with Python exception handling was also fixed, as well as
+a segfault fixed by Russ Allbery which happened whenever one closes and then
+reopens Python in the same process.  Julien Elie also fixed a bug when reloading
+Python filters (they were not always correctly reloaded) and a segfault when
+generating access groups with embedded Python filters for B<nnrpd>.
+Many thanks to David Hlacik for its bug reports.
+
+=item *
+
+The F<nnrpd.py> stub file in order to test Python B<nnrpd> hooks, as
+mentioned in their documentation, is now installed; only F<INN.py> was
+previously installed in I<pathfilter>.  Also fixed a bug in F<INN.py>
+and add missing methods to it.
+
+=item *
+
+Fixed a long-standing bug in B<innreport> which prevented it from
+correctly reporting B<nnrpd> and B<innfeed> log messages.
+
+=item *
+
+Fixed a hang in Perl hooks on (at least) HP/PA since S<Perl 5.10>.
+
+=item *
+
+Fixed a compilation problem on some platforms because of AF_INET6 which
+was not inside a HAVE_INET6 block in B<innfeed>.
+
+=item *
+
+Fixed a bug in B<innfeed> which contained thrice the same IPs for each
+peer; it unnecessarily slowed the peer IP rotation for B<innfeed>.  Thanks,
+S<D. Stussy>, for having seen that.  Miquel van Smoorenburg provided the patch.
+
+=item *
+
+A new I<heavily> improved version of B<pullnews> is shipped with this INN
+release.  This new version is provided by Geraint Edwards.  He added no
+more than S<16 flags>, fixed some bugs and integrated the B<backupfeed>
+contrib script by Kai Henningsen, adding again S<6 other> flags.  A
+long-standing but very minor bug in the B<-g> option was especially fixed
+and items from the to-do list implemented.  Many thanks again to Geraint
+Edwards.
+
+=item *
+
+New headers are accessible through Perl and Python B<innd> filtering
+hooks.  You will find the exact list in the INN Python Filtering and
+Authentication Hooks documentation (F<doc/hook-python>) and in Python
+samples.  Thanks to Matija Nalis for this addition of new useful headers.
+
+=item *
+
+New samples for Python B<nnrpd> hooks are shipped with INN:  F<nnrpd_access.py>
+for access control and F<nnrpd_dynamic.py> for dynamic access control.  The
+F<nnrpd_auth.py> script is now only used for authorization control.  See the
+F<readers.conf> man page for more information (especially the I<python_auth>,
+I<python_access> and I<python_dynamic> parameters).  The documention about
+INN Python Filtering and Authentication Hooks has also been improved by
+Julien Elie.
+
+=back
+
+=head1 Changes in 2.4.4
+
+=over 2
+
+=item *
+
+Fixed incomplete checking of packet sizes in the B<ctlinnd> interface in
+the no-Unix-domain-sockets case.  This is a potential buffer overflow in
+dead code since basically all systems INN builds on support Unix domain
+sockets these days.  Also track the buffer size more correctly in the
+client side of this interface for the Unix domain socket case.
+
+=item *
+
+Group blocks in F<incoming.conf> are now correctly parsed and no longer
+cause segfaults when loading this file.
+
+=item *
+
+Fixed a problem with B<innfeed> continuously segfaulting on amd64 hardware
+(and possibly on lots of 64-bit platforms).  Many thanks to Ollivier Robert
+for his patch and also to Kai Gallasch for having reported the problem and
+provided the FreeBSD server to debug it.
+
+=item *
+
+B<scanlogs> now rotates B<innfeed>'s log file, which prevents B<innfeed>
+from silently dying when its log file reaches S<2 GB>.
+
+=item *
+
+S<Perl 5.10> support has been added to INN thanks to Jakub Bogusz.
+
+=item *
+
+Some news clients hang when posting an article through a SSL connection:
+it seems that B<nnrpd>'s SSL routines make it wrongly wait for data
+completion.  In order to fix the problem, the select() wait is now
+just bypassed.  However, the IDLE timer stat is currently not collected
+for such connections.  Thanks to Kachun Lee for this workaround.
+
+=item *
+
+Fixed a bug in the display of the used compressor (C<cunbatch> was used
+if arguments were passed to B<gzip> or B<bzip2>).
+
+=item *
+
+Fixed a bug in B<mailpost> and B<pullnews> which prevented useful error
+messages to be seen.  Also add the B<-x> flag to B<pullnews> in order
+to insert Xref: headers in articles which lack one.
+
+=item *
+
+If compiling with S<Berkeley DB>, use its ndbm compatibility layer for
+B<ckpasswd> in preference to searching for a traditional dbm library.
+INN also supports S<Berkeley DB 4.4>, 4.5 and 4.6 thanks to Marco d'Itri.
+
+=item *
+
+B<ovdb_init> now properly closes stdin/out/err when it becomes a daemon.
+The issue was reported by Viktor Pilpenok and fixed by Marco d'Itri.
+
+=item *
+
+Added support for Diablo quickhash and hashfeed algorithms.
+It allows distributing the messages among several peers (new B<Q> flag
+for F<newsfeeds>).  Thanks to Miquel van Smoorenburg for this
+implementation in INN.
+
+=item *
+
+B<innd> now listen on separate sockets for IPv4 and IPv6 connections
+if the IPV6_V6ONLY socket option is available.  There might also be
+operating systems that still have separate IPv4 and IPv6 TCP implementations,
+and advanced features like TCP SACK might not be available on v6 sockets.
+Thanks to Miquel van Smoorenburg for this patch.
+
+=item *
+
+The two configuration options I<bindaddress> and I<bindaddress6> can now
+be set on a per-peer basis for B<innfeed>.  Setting I<bindaddress6>
+to C<none> tells B<innfeed> to never attempt an IPv6 connection to that
+host.  Thanks to Miquel van Smoorenburg for this patch.
+
+=item *
+
+Added a I<nnrpdflags> parameter to F<inn.conf> (modelled on the concept
+of I<innflags>) to permit passing of command line arguments to instances
+of B<nnrpd> spawned from B<innd>.
+
+=item *
+
+A new F<inn.conf> parameter called I<pathcluster> has been added:
+it allows appending a common name to the Path: header
+on all incoming articles.  I<pathhost> and I<pathalias> (if set)
+are still appended to the path as usual, but I<pathcluster>
+is always appended as the last element (e.g. on the leftmost
+side of the Path: header).  Thanks to Miquel van Smoorenburg for
+this feature.
+
+=item *
+
+B<simpleftp> has been rewritten to use C<Net::FTP>.  Indeed, F<ftp.pl>
+is no longer shipped with S<Perl 5> and the script did not work.
+
+=item *
+
+B<perl-nocem> will now check for a timeout and re-open the socket
+if required.  Additionally, B<perl-nocem> will switch to
+cancel_ctlinnd in case cancel_nntp fails after sending
+the Message-ID.  Thanks to Christoph Biedl for the patch.  A more
+detailed documentation has also been written for perl-nocem(8).
+
+=item *
+
+The RADIUS configuration is now wrapped in a C<server {}> block in
+F<radius.conf>.
+
+=item *
+
+Checkgroups when there is nothing to change no longer result in sending
+a blank mail to administrators.  Besides, no mail is sent by B<controlchan>
+for the creation of a newsgroup when the action is C<no change>.
+
+=item *
+
+Checkgroups are now properly propagated even though the news server
+does not carry the groups they are posted to.
+
+=item *
+
+B<controlchan> and B<docheckgroups> now handle wire format messages
+so that articles from the spool can be directly fed to them.
+
+=item *
+
+Newgroup control messages for existing groups now change their description.
+If a mail is sent to administrators, it reminds them to update their
+F<newsgroups> file.  It also warns when there are missing or obsolete
+descriptions.  Furthermore, the F<newsgroups> file is now written prettier
+(from one to three tabulations between the name of the group and its
+short description) and to.* groups cannot be created.
+
+=item *
+
+The sample F<control.ctl> file has been extensively updated.
+
+=item *
+
+Fixed empty LISTGROUP replies which were not terminated.  Thanks to
+David Canzi for the patch.
+
+=item *
+
+In response to a LIST [file] command, if the file does not exist,
+we assume it is not maintained and return C<503> instead of C<215> and
+an empty file.  Moreover, capability to LIST ACTIVE.TIMES for a wildmat
+pattern as its third argument has been added in order to select wanted
+newsgroups.
+
+=item *
+
+B<inews> now tries to authenticate if it does not receive a C<200> return
+code after MODE READER.  Indeed, it might be able to post even with
+a C<201> return code and also with another codes like C<440> or C<480>.
+
+=item *
+
+If creating a new F<history> file, set the ownership and mode appropriately.
+B<inncheck> also expects fewer things to be private to the news user.  Most
+of the configuration files will never contain private information like
+passwords.
+
+=item *
+
+Other minor bug fixes and documentation improvements.
+
+=back
+
+=head1 Changes in 2.4.3
+
+=over 2
+
+=item *
+
+Previous versions of INN had an optimization for handling XHDR Newsgroups
+that used the Xref: header from overview.  While this does make the command
+much faster, it doesn't produce accurate results and breaks the NNTP
+protocol, so this optimization has been removed.
+
+=item *
+
+Fixed a bug in B<innd> that allowed it to accept articles with duplicated
+headers if the header occurred an odd number of times.  Modified the
+programs for rebuilding overview to use the last Xref: header if there
+are multiple ones to avoid problems with spools that contain such invalid
+articles.
+
+=item *
+
+Fixed yet another problem with verifying that a user has permissions to
+approve posts to a moderated group.  Thanks, Jens Schlegel.
+
+=item *
+
+Increase the send and receive buffer on the Unix domain socket used by
+B<ctlinnd>.  This should allow longer replies (particularly for B<innstat>) on
+platforms with very low default Unix domain socket buffer sizes.
+
+=item *
+
+B<rnews>'s handling of articles with nul characters, NNTP errors, header
+problems, and deferrals has been significantly improved.
+
+=item *
+
+Thomas Parmelan added support to B<send-uucp> for specifying the funnel or
+exploder site to flush for feeds managed through one and fixed a problem
+with picking up old stranded work files.
+
+=item *
+
+Many other more minor bug fixes, optimization improvements, and
+documentation fixes.
+
+=back
+
+=head1 Changes in 2.4.2
+
+=over 2
+
+=item *
+
+INN is now licensed under a less restrictive license (about as minimally
+restrictive as possible shy of public domain), and the clause similar to
+the old BSD advertising clause has been dropped.
+
+=item *
+
+C<make install> and C<make update> now always install the newly built binaries,
+rather than only installing them if the modification times are newer.
+This is the behavior that people expect.  C<make install> now also
+automatically builds a new (empty) history database if one doesn't already
+exist.
+
+=item *
+
+The embedded Tcl filter code has been disabled (and will be removed
+entirely in the next major release of INN).  It hasn't worked for some
+time and causes B<innd> crashes if compiled in (even if not used).  If
+someone wants to step forward and maintain it, I recommend starting from
+scratch and emulating the Perl and Python filters.
+
+=item *
+
+B<ctlinnd> should now successfully handle messages from INN up to the maximum
+allowable packet size in the protocol, fixing problems sites with many
+active peers were having with B<innstat> output.
+
+=item *
+
+Overview generation has been fixed in both B<makehistory> and B<innd> to follow
+the rules in the latest NNTP draft rather than just replacing special
+characters with spaces.  This means that the unfolding of folded header
+lines will not introduce additional, incorrect whitespace in the overview
+data.
+
+=item *
+
+B<nnrpd> now uniformly responds with a C<480> or C<502> status code to attempts
+to read a newsgroup to which the user does not have access, depending on
+whether the user has authenticated.  Previously, it returned a C<411> status
+code, claiming the group didn't exist, which confuses the reactive
+authentication capability of news readers.
+
+=item *
+
+If a user is not authorized to approve articles (using the C<A> I<access>
+control in F<readers.conf>), articles that include Approved: headers will be
+rejected even if posted to unmoderated groups.  Some other site may
+consider that group to be moderated.
+
+=item *
+
+The configuration parser used for F<readers.conf> and others now correctly
+handles C<#> inside quoted strings and is more robust against unmatched
+double quotes.
+
+=item *
+
+Messages mailed to moderators had two spaces after the colons in the
+headers, rather than one.  This bug has been fixed.
+
+=item *
+
+A bug that could cause heap corruption and random crashes in B<innd> if INN
+were compiled with Python support has been fixed.
+
+=item *
+
+Some problems with B<innd>'s tracking of article size and enforcement of the
+configured maximum article size have been fixed.
+
+=item *
+
+B<pgpverify> will now correctly verify signatures generated by GnuPG and
+better supports GnuPG as the PGP implementation.
+
+=item *
+
+INN's code should now be more 64-bit clean in its handling of size_t,
+pointer differences, and casting of pointers, correcting problems that
+showed up on 64-bit platforms like AMD64.
+
+=item *
+
+Improved the error reporting in the history database code, in B<inews>, in
+B<controlchan>, and in B<expire>.
+
+=item *
+
+Many other, more minor bugs have also been fixed.
+
+=back
+
+=head1 Changes in 2.4.1
+
+=over 2
+
+=item *
+
+SECURITY:  Handle the special filing of control messages into per-type
+newsgroups more robustly.  This closes a potentially exploitable buffer
+overflow.  Thanks to Dan Riley for his excellent bug report.
+
+=item *
+
+Fixed article handling in B<innd> so that articles without a Path: header
+(arising from peers sending malformatted articles or injecting
+malformatted articles through rnews) would not cause B<innd> to crash.  (This
+was not exploitable.)
+
+=item *
+
+Fixed a serious bug in XPAT handling, thanks to Tommy van Leeuwen.
+
+=item *
+
+C<configure> now looks for B<sendmail> only in F</usr/sbin> and F</usr/lib>, not on
+the user's path.  This should reduce the need for B<--with-sendmail> if your
+preferred B<sendmail> is in a standard location.
+
+=item *
+
+The robustness of the tradindexed overview method has been further
+increased, handling more edge cases arising from corrupted databases and
+oddly-named newsgroups.
+
+=item *
+
+B<innd> now never decreases the high water mark of a newsgroup when
+renumbering, which should help ameliorate overview and F<active> file
+synchronization problems.
+
+=item *
+
+Do not close and reopen the F<history> file on B<ctlinnd> reload when the server
+is paused or throttled.  This was breaking B<ctlinnd> reload all during a
+server pause.
+
+=item *
+
+Various minor portability and compilation issues fixed.  Substantial
+numbers of compiler warnings have been cleaned up, thanks largely to work
+by Ilya Kovalenko.
+
+=item *
+
+Multiple other more minor bugs have been fixed.
+
+=item *
+
+Documentation and man pages have been clarified and updated.
+
+=back
+
+=head1 Upgrading from 2.3 to 2.4
+
+The F<inn.conf> parser has changed between S<INN 2.3> and 2.4.  Due to that
+change, options in F<inn.conf> that contain whitespace or a few other
+special characters must be quoted with double quotes, and empty parameters
+(parameters with no value) are not allowed.  S<INN 2.4> comes with a script,
+B<innupgrade>, run automatically during C<make update>, that will attempt
+to fix any problems that it finds with your F<inn.conf> file, saving the
+original as F<inn.conf.OLD>.
+
+This change is the beginning of standardization of parsing and syntax
+across all of INN's configuration files.
+
+The history subsystem now has a standard API that allows other backends to
+be used.  Because of this, you now need to specify the history method in
+F<inn.conf>.  Adding:
+
+    hismethod: hisv6
+
+will tell INN to use the same history backend as was used in previous
+versions.  B<innupgrade> should take care of this for you.
+
+ovdb is known to have some locking and timing issues related to how B<nnrpd>
+shuts down (or fails to shut down) the overview databases.  If you have
+stability problems with ovdb, try setting I<readserver> to true in
+F<ovdb.conf>.  This will funnel all ovdb reads through a single process
+with a cleaner interface to the underlying S<Berkeley DB> database.
+
+If you use Perl authentication for B<nnrpd> (if I<nnrpdperlauth> in
+F<inn.conf> is true), there have been major changes.  See "Changes to
+Perl Authentication Support for nnrpd" in F<doc/hook-perl> for details.
+
+Similarly, if you use Python authentication for B<nnrpd> (if
+I<nnrpdpythonauth> in F<inn.conf> is true), there have been major changes.
+See "Changes to Python Authentication and Access Control Support for
+nnrpd" in F<doc/hook-python> for details.
+
+If you use B<send-uucp>, it has been completely rewritten and now takes a
+configuration file to specify its behavior.  See its man page for more
+information.  If you use B<sendbatch>, it is no longer included in INN
+since the new B<send-uucp> can handle all of the same functionality.
+
+The wildmat API has been renamed (to uwildmat and friends; see uwildmat(3)
+for the interfaces) to distinguish it from Rich $alz's original version,
+since it now supports UTF-8.  This may require changes in other software
+packages that link against INN's libraries.
+
+If you are upgrading from a version prior to S<INN 2.3>, see L<Upgrading
+from 2.2 to 2.3>.
+
+=head1 Changes in 2.4.0
+
+=over 2
+
+=item *
+
+IPv6 support has been added, disabled by default.  If you have IPv6
+connectivity, build with B<--enable-ipv6> to try it.  There are no known
+bugs, but please report any problems you find (or even successes, if you
+use an unusual platform).  There are a few changes of interest; further
+information is available in F<doc/IPv6-info>.
+
+=item *
+
+The tradindexed overview method has been completely rewritten and should
+be considerably more robust in the face of system crashes.  A new utility,
+B<tdx-util>, is provided to examine the contents of the overview database,
+repair inconsistencies, and rebuild the overview for particular groups
+from a tradspool news spool.  See tdx-util(8) for more details.
+
+=item *
+
+The Perl and Python authentication hooks for readers have been extensively
+overhauled and integrated better with F<readers.conf>.  See the Changes
+sections in F<doc/hook-perl> and F<doc/hook-python> for more details.
+
+=item *
+
+B<nnrpd> now optionally supports article injection via IHAVE, see
+readers.conf(5).  Any articles injected this way must have Date, From,
+Message-ID, Newsgroups, Path, and Subject headers.  X-Trace and
+X-Complaints-To headers will be added if the appropriate options are set
+in F<readers.conf>, but other headers will not be modified/inserted (e.g.
+NNTP-Posting-Host, NNTP-Posting-Date, Organization, Lines, Cc, Bcc, and To
+headers).
+
+=item *
+
+B<nnrpd> now handles arbitrarily long lines in POST and IHAVE; administrators
+who want to limit the length of lines in locally posted articles will need
+to add this to their local filters instead.
+
+=item *
+
+B<nnrpd> no longer handles the poorly-specified S<RFC 977> optional fourth
+argument to the NEWGROUPS command specifying the "distributions" that the
+command was supposed to apply to.
+
+Clients that use that argument will break.  There are not believed to be
+any such clients, and it's easy enough to just filter the returned list of
+newsgroups (which is generally fairly short) to achieve the same results.
+
+=item *
+
+B<nnrpd> no longer accepts UTC as a synonym for GMT for NEWGROUPS or NEWNEWS.
+This usage was never portable, and was rejected by the NNTP working group.
+It is being removed now in the hope that it will be caught before anyone
+starts to rely on it.
+
+=item *
+
+B<innfeed> supports a new peer parameter, I<backlog-feed-first>, that if set
+to true feeds any backlog to a peer before new articles, see
+innfeed.conf(5).  When used in combination with I<max-connections> set to C<1>,
+this can be used to enforce in-order delivery of messages to a peer that
+is doing Xref slaving, avoiding cases where a higher-numbered message is
+received before a lower-numbered message in the same group.
+
+=item *
+
+Several other, more minor protocol issues have been fixed:  connections
+rejected due to the connection rate limiting in B<innd> receive C<400> replies
+instead of C<504> or C<505>, and ARTICLE without an argument will always either
+retrieve the current article or return a C<423> error, never advance the
+current article number to the next valid article.
+
+See F<doc/compliance-nntp> for all of the known issues with INN's
+compliance with the current NNTP draft.
+
+=item *
+
+All accesses to the F<history> file for all parts of INN now go through a
+generic API like the storage and overview subsystems do.  This will
+eventually allow new history implementations to be dropped in without
+affecting the rest of INN, and will significantly improve the
+encapsulation of the history subsystem.  See the libinnhist(3) man page
+for the details of the interface.
+
+=item *
+
+INN now uses a new parser for the F<inn.conf> file.  This means that
+parameters containing whitespace or other special characters must now be
+quoted; see inn.conf(5).  It fixes the long-standing bug that certain
+values must be included in F<inn.conf> even if using the defaults for the
+use of shell or Perl scripts, and it will serve as the basis for
+standardizing and cleaning up the configuration file parsing in other
+parts of INN.  B<innupgrade> is run during C<make update> and should convert
+an existing F<inn.conf> file for you.
+
+=item *
+
+B<send-uucp> has been replaced by a completely rewritten version from
+Marco d'Itri, Edvard Tuinder, and Miquel van Smoorenburg, which uses a
+configuration file that specifies batch sizes, compression methods, and
+hours during which batches should be generated.  The old B<sendbatch>
+script has been retired, since B<send-uucp> can now handle everything
+that it did.
+
+=item *
+
+Two C<configure> options have changed names:  B<--with-tmp-path> is now
+B<--with-tmp-dir>, and B<--with-largefiles> is now B<--enable-largefiles>, to
+improve consistency and better match the C<autoconf> option guidelines.
+
+=item *
+
+Variables can now be used in the F<newsfeeds> file to make it easier to
+specify many similar feeds or feed patterns.  See the newsfeeds(5) man
+page for details.
+
+=item *
+
+Local connections to INN support a new special mode, MODE CANCEL, that
+allows efficient batch cancellation of messages.  This is intended to be
+the preferred interface for external spam and abuse filters like NoCeM.
+See "CANCEL FEEDS" in innd(8) for details.
+
+=item *
+
+Two new options, I<nfsreader> and I<nfswriter>, have been added to
+F<inn.conf> to aid in building NFS based shared reader/writer platforms.
+On the writer server configure I<nfswriter> to true and on all of the readers
+configure I<nfsreader> to true; these options add calls to force data out to
+the NFS server and force it to be read directly from the NFS server at the
+appropriate moments.  Note that it has only been tested on S<Solaris 8>,
+using CNFS as the storage mechanism and tradindexed as the overview
+method.
+
+=item *
+
+A new option, I<tradindexedmmap>, has been added to F<inn.conf>.  If set
+to true (the default), then the tradindexed overview method will use
+mmap() to access its overview data (in 2.3 you couldn't control this; it
+always used mmap).
+
+=item *
+
+Thanks to code contributed by CMU, B<innfeed> can now feed an IMAP server as
+well as other NNTP servers.  See the man page for innfeed(8) for more
+information.
+
+=item *
+
+An authenticator, B<auth_smb>, that checks a username and password against
+a remote Samba server is now included.  See auth_smb(8) for details.
+
+=item *
+
+The wildmat functions in INN now support UTF-8, in a way that should allow
+them to still work with most simple 8-bit character sets in widespread
+use.  As part of this change, some additional wildmat interfaces are now
+available and the names have changed (to uwildmat, where C<u> is for
+Unicode).  See uwildmat(3) for the details.
+
+=item *
+
+The interface between external authenticators and B<nnrpd> is now properly
+documented, in F<doc/external-auth>.  A library implementing this
+interface in C is provided, which should make it easier to write
+additional authenticators resolvers.  See libauth(3) for details, and any
+of the existing programs in F<authprogs/> for examples.
+
+=item *
+
+INN now checks to ensure that the configured temporary directory is
+not world-writeable.  Additionally, most (if not all) of the temporary
+file creation in INN now uses functions that create temporary files
+properly and safely.
+
+=item *
+
+All of the applicable bug fixes from the S<INN 2.3> STABLE series are
+also included in S<INN 2.4>.
+
+=back
+
+=head1 Changes in 2.3.5
+
+=over 2
+
+=item *
+
+Clients using POST are no longer permitted to provide an Injector-Info:
+header.
+
+=item *
+
+Fixed a bug causing posts with Followup-To: set to a moderated group to be
+rejected if the posting user didn't have permission to approve postings.
+
+=item *
+
+Fixed bugs in B<inncheck> with setuid B<rnews> or setgid B<inews>, in B<innconfval>
+with F<inn.conf> parameters containing shell metacharacters but no spaces,
+and in F<parsedate.y> with some versions of B<yacc>.  Fixed a variety of
+size-related printf format warnings (e.g., C<%d> vs. C<%ld>) thanks to the work
+of Winfried Szukalski.
+
+=back
+
+=head1 Changes in 2.3.4
+
+=over 2
+
+=item *
+
+LIST ACTIVE no longer returns data when given a single group argument if
+the client is not authorized to read that group.
+
+=item *
+
+XHDR and XPAT weren't correctly parsing article headers, resulting in
+searches for the header "newsgroup" matching the header "newsgroups".
+
+=item *
+
+Made CNFS more robust against crashes by actually syncing the cycbuff
+headers to disk as was originally intended.  Fixed a memory leak in the
+tradspool code.
+
+=item *
+
+Two bugs in B<pgpverify> when using GnuPG were fixed:  it now correctly checks
+for B<gpgv> (rather than B<pgp>) when told to use GnuPG and expects the keyring
+to be F<pubring.gpg> (not F<pubring.pgp>).
+
+=item *
+
+Substantial updates to the sample provided F<control.ctl> file.
+
+=item *
+
+Compilation fixes with S<Perl 5.8.0>, S<Berkeley DB 4.x>, current versions of
+Linux (including with large file support), and Tru64.  B<inndf> fixes for
+ReiserFS.
+
+=item *
+
+Various bugs in the header handling in B<nnrpd> have been fixed, including
+hangs when using virtual domains and improper processing of folded headers
+under certain circumstances.
+
+=item *
+
+Other minor bug fixes and documentation improvements.
+
+=back
+
+=head1 Changes in 2.3.3
+
+=over 2
+
+=item *
+
+B<pgpverify> now supports using GnuPG to check signatures (rather than PGP)
+without the B<pgpgpg> wrapper.  GnuPG can check both old-style RSA signatures
+and new OpenPGP signatures and is recommended over S<PGP 2.6>.  If you have
+GnuPG installed, B<pgpverify> will use it rather than PGP, which means that
+you may have to create a new key ring for GnuPG to use to verify signatures
+if you were previously using PGP.
+
+=item *
+
+Users can no longer post articles containing Approved: headers to
+moderated groups by default; they must be specifically given that
+permission with the I<access> parameter in F<readers.conf>.  See the man page
+for more details.
+
+=item *
+
+Two bugs in repacking overview index files and a reliability bug with
+writing overview data were all fixed in the tradindexed overview method,
+hopefully making it somewhat more reliable, particularly for B<makehistory>.
+
+=item *
+
+If F<rc.news.local> exists in the INN binary directory, it will be run with
+the start or stop argument whenever B<rc.news> is run.  This is available
+as a hook for local startup and shutdown code.
+
+=item *
+
+The default history table hash sizes were increased because a too-small
+value can cause serious performance problems (whereas a too-large hash
+just wastes a bit of disk space).
+
+=item *
+
+The sample F<control.ctl> file has been extensively updated.
+
+=item *
+
+Wildmat exclusions (C<@> and C<!>) should now work properly in F<storage.conf>
+newsgroup patterns.
+
+=item *
+
+The implementation of the B<-w> flag for B<expireover> was fixed; previously,
+the value given to B<-w> to change B<expireover>'s notion of the current time
+was scaled by too much.
+
+=item *
+
+Various other more minor bug fixes, standards compliance fixes, and
+documentation improvements.
+
+=back
+
+=head1 Changes in 2.3.2
+
+=over 2
+
+=item *
+
+B<innxmit> can again handle regular filenames as input as well as storage API
+tokens (allowing it to be used to import an old traditional spool).
+
+=item *
+
+Several problems with tagged-hash history files have been fixed thanks to
+the debugging efforts of Andrew Gierth and Sang-yong Suh.
+
+=item *
+
+A very long-standing (since S<INN 1.0>!) NNTP protocol bug in B<nnrpd> was
+fixed.  The response to an ARTICLE command retrieving a message by Message-ID
+should have the Message-ID as the third word of the response, not the
+fourth.  Fixing this is reported to I<possibly> cause problems with some
+Netscape browsers, but other news servers correctly follow the protocol.
+
+=item *
+
+Some serious performance problems with expiration of tradspool should now
+be at least somewhat alleviated.  tradspool and timehash now know how to
+output file names for removal rather than tokens, and B<fastrm>'s ability to
+remove regular files has been restored.  This should bring expiration
+times for tradspool back to within a factor of two of pre-storage-API
+expiration times.
+
+=item *
+
+Added a sample F<subscriptions> file and documentation for it and B<innmail>.
+
+=item *
+
+Various other bug fixes and documentation updates.
+
+=back
+
+=head1 Changes in 2.3.1
+
+=over 2
+
+=item *
+
+B<inews> no longer downloads the F<active> file, no longer tries to send
+postings to moderated groups to the moderator directly, and in general
+duplicates less of the functionality of B<nnrpd>, instead letting B<nnrpd>
+handle it.  This fixes the problem of B<inews> not working properly for users
+other than news without being setgid.
+
+=item *
+
+Added a man page for B<ckpasswd>.
+
+=item *
+
+A serious bug in the embedded Perl authentication hooks was fixed, thanks
+to Jan Rychter.
+
+=item *
+
+The annoying compilation problem with embedded Perl filtering on Linux
+systems without libgdbm installed should be fixed.
+
+=item *
+
+INN now complains loudly at configure time if the configured path for
+temporary files is world-writeable, since this configuration can be a
+security hole.
+
+=item *
+
+Many other varied bug fixes and documentation fixes of all sorts.
+
+=back
+
+=head1 Upgrading from 2.2 to 2.3
+
+There may be additional things to watch out for not listed here; if you
+run across any, please let <inn-bugs@isc.org> know about them.
+
+Simply doing a C<make update> is not sufficient to upgrade; the history and
+overview information will also have to be regenerated, since the formats
+of both files have changed between 2.2 and 2.3.  Regardless of whether you
+were using the storage API or traditional spool under 2.2, you'll need to
+rebuild your overview and history files.  You will also need to add a
+F<storage.conf> file, if you weren't using the storage API under S<INN 2.2>.  A
+good default F<storage.conf> file for 2.2 users would be:
+
+    method tradspool {
+        newsgroups: *
+        class: 0
+    }
+
+Create this F<storage.conf> file before rebuilding history or overview.
+
+If you want to allow readers, or if you want to expire based on newsgroup
+name, you need to tell INN to generate overview data and pick an overview
+method by setting I<ovmethod> in F<inn.conf>.  See F<INSTALL> and inn.conf(5)
+for more details.
+
+The code that generates the dbz index files has been split into a separate
+program, B<makedbz>.  B<makehistory> still generates the base F<history> file
+and the overview information, but some of its options have been changed.
+To rebuild the history and overview files, use something like:
+
+    makehistory -b -f history.n -O -T /usr/local/news/tmp -l 600000
+
+(change the F</usr/local/news/tmp> path to some directory that has plenty of
+temporary space, and leave off B<-O> if you're running a transit-only server
+and don't intend to expire based on group name, and therefore don't need
+overview.)  Or if your overview is buffindexed, use:
+
+    makehistory -b -f history.n -O -F
+
+Both will generate a new history file as F<history.n> and rebuild overview
+at the same time.  If you want to preserve a record of expired Message-IDs
+in the history file, run:
+
+    awk 'NF==2 { print; }' < history >> history.n
+
+to append them to the new history file you created above.  Look over the
+new history file and make sure it looks right, then generate the new index
+files and move them into place:
+
+    makedbz -s `wc -l < history.n` -f history.n
+    mv history.n history
+    mv history.n.dir history.dir
+    mv history.n.hash history.hash
+    mv history.n.index history.index
+
+(Rather than F<.hash> and F<.index> files, you may have a F<.pag> file if you're
+using tagged hash.)
+
+For reader machines, F<nnrp.access> has been replaced by F<readers.conf>.
+There currently isn't a program to convert between the old format and the
+new format (if you'd like to contribute one, it would be welcomed
+gratefully).  The new file is unfortunately considerably more complex as
+a result of its new capabilities; please carefully read the example
+F<readers.conf> provided and the man page when setting up your initial
+configuration.  The provided commented-out examples cover the most common
+installation (IP-based authentication for all machines on the local
+network).
+
+INN makes extensive use of mmap(2) for the new overview mechanisms, so at
+the present time NFS-mounting the spool and overview on multiple reader
+machines from one central server probably isn't feasible in this version.
+mmap tends to interact poorly with NFS (at the least, NFS clients won't
+see updates to the mapped files in situations where they should).  (The
+preferred way to fix this would, rather than backing out the use of mmap
+or making it optional, to add support for Diablo-style header feeds and
+pull-on-demand of articles from a master server.)
+
+The flags for B<overchan> have changed, plus you probably don't want to
+run B<overchan> at all any more.  Letting B<innd> write overview data itself
+results in somewhat slower performance, but is more reliable and has a
+better failure mode under high loads.  Writing overview data directly is
+the default, so in a normal upgrade from 2.2 to 2.3 you'll want to comment
+out or remove your B<overchan> entry in F<newsfeeds> and set I<useoverchan> to
+false in F<inn.conf>.
+
+B<crosspost> is no longer installed, and no longer works (even with
+traditional spool).  If you have an entry for B<crosspost> in F<newsfeeds>,
+remove it.
+
+If you're importing a traditional spool from a pre-storage API INN server,
+it's strongly recommended that you use NNTP to feed the articles to your
+new server rather than trying to build overview and history directly from
+the old spool.  It's more reliable and ensures that everything gets put
+into the right place.  The easiest way to do this is to generate, on your
+old server, a list of all of your existing article files and then feed
+that list to B<innxmit>.  Further details can be found in the FAQ at
+L<https://www.eyrie.org/~eagle/faqs/inn.html>.
+
+If you are using a version of Cleanfeed that still has a line in it like:
+
+    $lines = $hdr{'__BODY__'} =~ tr/\n/\n/;
+
+you will need to change this line to:
+
+    $lines = $hdr{'__LINES__'};
+
+to work with S<INN 2.3> or later.  This is due to an internal optimization of
+the interface to embedded filters that's new in S<INN 2.3>.
+
+=head1 Changes in 2.3.0
+
+=over 2
+
+=item *
+
+New F<readers.conf> file (replaces F<nnrp.access>) which allows more
+flexible specification of access restrictions.  Included in the sample
+implementations is a RADIUS-based authenticator.
+
+=item *
+
+Unified overview has been replaced with an overview API, and there are now
+three separate overview implementations to choose from.  One (tradindexed)
+is very like traditional overview but uses an additional index file.  The
+second (buffindexed) uses large buffers rather than separate files for
+each group and can handle a higher incoming article rate while still being
+fast for readers.  The third (ovdb) uses S<Berkeley DB> to store overview
+information (so you need to have S<Berkeley DB> installed to use it).  The
+I<ovmethod> key in F<inn.conf> chooses the overview method to use.
+
+Note that ovdb has not been as widely tested as the other overview
+mechanisms and should be considered experimental.
+
+=item *
+
+All article storage and retrieval is now done via the storage API.
+Traditional spool is now available as a storage type under the storage
+API.  (Note that the current traditional spool implementation causes
+nightly expire to be extremely slow for a large number of articles, so
+it's not recommended that you use the tradspool storage method for the
+majority of a large spool.)
+
+=item *
+
+The timecaf storage method has been added, similar to timehash but storing
+multiple articles in a single file.  See F<INSTALL> for details on it.
+
+=item *
+
+INN now supports embedded Python filters as well as Perl and Tcl filters,
+and supports Python authentication hooks.
+
+=item *
+
+There is preliminary support for news reading over SSL, using OpenSSL.
+
+=item *
+
+To simplify anti-abuse filtering, and to be more compliant with news
+standards and proposed standards, INN now treats as control messages only
+articles containing a Control: header.  A Subject: line beginning with
+C<cmsg > is no longer sufficient for a message to be considered a control
+message, and the Also-Control: header is no longer supported.
+
+=item *
+
+The INN build system no longer uses subst.  (This will be transparent to
+most users; it's an improvement and modernization of how INN is
+configured.)
+
+=item *
+
+The build and installation system has been substantially overhauled.
+C<make update> now updates scripts as well as binaries and documentation,
+there is better support for parallel builds (C<make -j>), there is less
+C<make> recursion, and far more of the system-dependent configuration is
+handled directly by C<autoconf>.  libtool build support (including shared
+library support) should be better than previous releases.
+
+=item *
+
+All of the applicable bug fixes from the S<INN 2.2> STABLE series are
+also included in S<INN 2.3>.
+
+=back
+
+=head1 Changes in 2.2.3
+
+=over 2
+
+=item *
+
+INN no longer installs B<inews> setgid news or B<rnews> setuid root
+by default.  If you need the old behavior, B<--enable-uucp-rnews>
+and/or B<--enable-setgid-inews> must be given to C<configure>.  See
+F<INSTALL> for more information.
+
+=item *
+
+A security hole when I<verifycancels> is turned on in F<inn.conf> (not
+the default) was fixed.
+
+=item *
+
+Message-IDs are now limited to 250 octets to prevent interoperability
+problems with other servers.
+
+=item *
+
+Various other security paranoia fixes have been made.
+
+=item *
+
+Embedded Perl filters fixed to work with S<Perl 5.6.0>.
+
+=item *
+
+Lots of bug fixes.
+
+=back
+
+=head1 Changes in 2.2.2
+
+=over 2
+
+=item *
+
+Various minor bug fixes and a Y2K bug fix.  The Y2K bug is in version
+version 2.2.1 only and will show up after S<Jan 1st>, 2000 when a news reader
+issues a NEWNEWS command for a date prior to the year 2000.
+
+=back
+
+=head1 Changes in 2.2.1
+
+=over 2
+
+=item *
+
+Various bug fixes, mostly notably fixes for potential buffer overflow
+security vulnerabilities.
+
+=back
+
+=head1 Changes in 2.2.0
+
+=over 2
+
+=item *
+
+New F<storage.conf> file (replaces F<storage.ctl>).
+
+=item *
+
+New (optional) way of handling non-cancel control messages (B<controlchan>)
+that serializes them and prevents server overload from control message
+storms.
+
+=item *
+
+Support for B<actsyncd> to fetch F<active> file with B<ftp>; configured by default
+to use <ftp://ftp.isc.org/pub/usenet/CONFIG/active.Z> if you run B<actsyncd>.
+Be sure to read the manual page for B<actsync> to configure an F<actsync.ign>
+file for your site, and test B<simpleftp> if you do not C<configure> with B<wget>
+or B<ncftp>.  Also see L<https://ftp.isc.org/pub/usenet/CONFIG/README>.
+
+=item *
+
+Some options to C<configure> are now moved to F<inn.conf> (I<merge-to-groups> and
+I<pgp-verify>, without the hyphen).
+
+=item *
+
+B<inndf>, a portable version of df(1), is supplied.
+
+=item *
+
+New B<cnfsstat> program to show stats of CNFS buffers.
+
+=item *
+
+B<news2mail> and B<mailpost> programs for gatewaying news to mail and mail to
+news are supplied.
+
+=item *
+
+B<pullnews> program for doing a sucking feed is provided (not meant for large
+feeds).
+
+=item *
+
+The B<innshellvars.csh.in> script is obsolete (and lives in the F<obsolete>
+directory, for now).
+
+=back
+
+$Id: news.pod 10326 2019-02-04 14:22:34Z iulius $
+
+=cut

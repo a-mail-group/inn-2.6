@@ -1,0 +1,331 @@
+#! /usr/bin/perl -w -T
+
+##  $Id: innupgrade.in 9477 2013-05-24 16:21:15Z iulius $
+##
+##  Convert INN configuration files to the current syntax.
+##
+##  Intended to be run during a major version upgrade, this script tries to
+##  convert existing INN configuration files to the syntax expected by the
+##  current version, if that's changed.
+##
+##  Note that this script cannot use INN::Config, since loading that file
+##  requires innconfval be able to parse inn.conf, and until this script runs,
+##  inn.conf may not be valid.
+##
+##  Tainting ("-T" flag to perl) is on because innupgrade can be run as a
+##  setgid program on a few systems ("*g*make update" does that for instance).
+##  Therefore, we have to be sure innupgrade is taint-safe because Perl
+##  will check for tainted variables when it runs a setgid script.
+##
+##  Currently handles the following conversions:
+##
+##   * Clean up inn.conf for the new parser in INN 2.4.
+##   * Add the hismethod parameter to inn.conf if not found.
+##   * Rename nntpactsync to incominglogfrequency in inn.conf.
+##   * Rename addnntppostingdate and addnntppostinghost to respectively
+##     addinjectiondate and addinjectionpostinghost in inn.conf.
+##   * Move parameters from overview.fmt to inn.conf if needed.
+##   * Move parameters from sasl.conf to inn.conf if needed.
+##   * Rename or remove obsolete files.
+##   * Change startinnfeed to innfeed or imapfeed in newsfeeds.
+
+require 5.003;
+
+use strict;
+use vars qw(%FIXES %RENAME);
+use subs qw(fix_inn_conf);
+
+use Getopt::Long qw(GetOptions);
+
+# The mappings of file names to fixes.
+%FIXES = ('inn.conf'  => \&fix_inn_conf,
+          'newsfeeds' => \&fix_newsfeeds);
+
+# The mappings of obsolete file names to rename.
+# If the new name is empty, the file is removed.
+%RENAME = ('auth_smb'         => 'auth_smb.OLD',     # Obsolete programs in INN 2.5.0.
+           'auth_smb.8'       => '',
+           'gpgverify'        => 'gpgverify.OLD',
+           'inndstart'        => 'inndstart.OLD',
+           'inndstart.8'      => '',
+           'overview.fmt'     => 'overview.fmt.OLD',
+           'overview.fmt.5'   => '',
+           'sasl.conf'        => 'sasl.conf.OLD',
+           'sasl.conf.5'      => '',
+           'startinnfeed'     => 'startinnfeed.OLD',
+           'startinnfeed.1'   => '',
+
+           'compliance-nntp'  => '',                 # Obsolete documentation in INN 2.5.0.
+           'makeactive.8'     => '',                 # -- empty placeholder.
+           'parsedate.3'      => '',                 # -- replaced by convdate.
+           'pgpverify.8'      => '',                 # -- it is pgpverify(1).
+           'README.readers.conf' => '',              # -- it is external-auth.
+           'sm.8'             => '',                 # -- it is sm(1).
+
+           'innfeed.1'        => '',                 # It is innfeed(8) in INN 2.5.3.
+
+           'hook-tcl'         => 'hook-tcl.OLD',     # Obsolete Tcl hooks in INN 2.5.0.
+           'filter.tcl'       => 'filter.tcl.OLD',
+           'startup.tcl'      => 'startup.tcl.OLD',
+
+           'motd.news'        => 'motd.nnrpd',       # Rename in INN 2.5.3.
+           'radius.conf'      => 'inn-radius.conf',  # Rename in INN 2.5.4.
+           'radius.conf.5'    => ''
+          );
+
+# Clean up inn.conf for the new parser in INN 2.4.  Null keys (keys without
+# values) need to be commented out since they're no longer allowed (don't just
+# remove them entirely since people may want them there as examples), and
+# string values must be quoted if they contain any special characters.  Takes
+# a reference to an array containing the contents of the file, a reference to
+# an array into which the output should be put, and the file name for error
+# reporting.
+sub fix_inn_conf {
+    my ($input, $output, $file) = @_;
+    my $line = 0;
+    my ($raw, $hismethod, $overview, $tls);
+    local $_;
+    for $raw (@$input) {
+        $_ = $raw;
+        $line++;
+        # Commented or blank lines.
+        if (/^\s*\#/ || /^\s*$/) {
+            push (@$output, $_);
+            next;
+        }
+        chomp;
+        unless (/^(\s*)(\S+):(\s*)(.*)/) {
+            warn "$file:$line: cannot parse line: $_\n";
+            push (@$output, $_);
+            next;
+        }
+
+        my ($indent, $key, $space, $value) = ($1, $2, $3, $4);
+
+        # Empty value.
+        if ($value eq '') {
+            push (@$output, "#$_\n");
+            next;
+        }
+
+        $hismethod = 1 if $key eq 'hismethod';
+        $overview = 1 if $key =~ /^extraoverview(advertised|hidden)$/;
+        $tls = 1 if $key =~ /^tls(capath|cafile|certfile|keyfile)$/;
+
+        if ($key eq 'nntpactsync') {
+            $key = 'incominglogfrequency';
+        }
+        if ($key eq 'addnntppostingdate') {
+            $key = 'addinjectiondate';
+        }
+        if ($key eq 'addnntppostinghost') {
+            $key = 'addinjectionpostinghost';
+        }
+
+        # A list value (on only one line).
+        # This condition must occur after having checked for $overview.
+        if ($value =~ /^\[/) {
+            push (@$output, "$_\n");
+            next;
+        }
+
+        $value =~ s/\s+$//;
+        if ($value =~ /[\s;\"<>\[\]\\{}]/ && $value !~ /^\".*\"\s*$/) {
+            $value =~ s/([\"\\])/\\$1/g;
+            $value = '"' . $value . '"';
+        }
+
+        push (@$output, "$indent$key:$space$value\n");
+    }
+
+    # Add a setting of hismethod if one wasn't present in the original file.
+    unless ($hismethod) {
+        push (@$output, "\n# Added by innupgrade.\nhismethod: hisv6\n");
+    }
+
+    # Import the settings from overview.fmt if present and not found in inn.conf.
+    if (!$overview && -f 'overview.fmt') {
+        open (OVERVIEWFMT, 'overview.fmt') or die "Can't open overview.fmt: $!\n";
+        my (@extraoverview, $foundfull, $foundxref);
+        while (<OVERVIEWFMT>) {
+            # Find out the first ":full" in the file.  It may not be "Xref:full".
+            # One "Xref" is already advertised as the eighth field in
+            # the overview database so we have to drop the *first* "Xref:full".
+            if (!$foundfull) {
+                if (/:full/i && !/^\s*\#/) {
+                    $foundfull = 1;
+                } else {
+                    next;
+                }
+            }
+
+            next if (/^\s*\#/ || !/:full/i);
+
+            if (!$foundxref) {
+                if (/Xref:full/i) {
+                    $foundxref = 1;
+                    next;
+                }
+            }
+
+            chomp;
+            s/\s//g;
+            s/:full.*$//i;
+            push (@extraoverview, $_);
+        }
+        close (OVERVIEWFMT);
+        if ($#extraoverview >= 0) {
+            push (@$output, "\n# Moved from overview.fmt by innupgrade.\n");
+            push (@$output, "extraoverviewadvertised: [ " .
+                            join (" ", @extraoverview) . " ]\n");
+        }
+    }
+
+    # Import the settings from sasl.conf if present and not found in inn.conf.
+    if (!$tls && -f 'sasl.conf') {
+        open (SASL, 'sasl.conf') or die "Can't open sasl.conf: $!\n";
+        my (@sasl, $found);
+        while (<SASL>) {
+            $found = 1 if (/\S/ && !/^\s*\#/);
+            s/^(\s*)tls_ca_file:/tlscafile:/;
+            s/^(\s*)tls_ca_path:/tlscapath:/;
+            s/^(\s*)tls_cert_file:/tlscertfile:/;
+            s/^(\s*)tls_key_file:/tlskeyfile:/;
+            push (@sasl, $_);
+        }
+        close (SASL);
+        if ($found) {
+            push (@$output, "\n# Moved from sasl.conf by innupgrade.\n");
+            push (@$output, @sasl);
+        }
+    }
+}
+
+# Replace startinnfeed with the appropriate invocation of innfeed or imapfeed
+# in newsfeeds.  Takes a reference to an array containing the contents of the
+# file, a reference to an array into which the output should be put, and the
+# file name for error reporting.
+sub fix_newsfeeds {
+    my ($input, $output, $file) = @_;
+    my $line = 0;
+    my $raw;
+    local $_;
+    for $raw (@$input) {
+        $_ = $raw;
+        $line++;
+        if (/^\s*\#/ || /^\s*$/) {
+            push (@$output, $_);
+            next;
+        }
+        chomp;
+        s{(/\S+)/startinnfeed\b(\s+imapfeed)?\b}
+            {$2 ? "$1/imapfeed" : "$1/innfeed"}e;
+        push (@$output, "$_\n");
+    }
+}
+
+# Upgrade a particular file.  Open the file, read it into an array, and then
+# run the fix function on it.  If the fix function generates different output
+# than the current contents of the file, change the file.
+sub upgrade_file {
+    my ($file, $function) = @_;
+    open (INPUT, $file) or die "$file: cannot open: $!\n";
+    my @input = <INPUT>;
+    close INPUT;
+    my @output;
+    &$function (\@input, \@output, $file);
+    if (join ('', @input) ne join ('', @output)) {
+        if (-e "$file.OLD") {
+            if (-t STDIN) {
+                print "$file.OLD already exists, overwrite (y/N)? ";
+                my $answer = <STDIN>;
+                if ($answer !~ /y/i) {
+                    die "$file: backup $file.OLD already exists, aborting\n";
+                }
+            } else {
+                die "$file: backup $file.OLD already exists\n";
+            }
+        }
+        print "Updating $file, old version saved as $file.OLD\n";
+        my ($user, $group) = (stat $file)[4,5];
+        open (OUTPUT, "> $file.new.$$")
+            or die "$file: cannot create $file.new.$$: $!\n";
+        print OUTPUT @output;
+        close OUTPUT or die "$file: cannot flush new file: $!\n";
+        unless (link ($file, "$file.OLD")) {
+            rename ($file, "$file.OLD")
+                or die "$file: cannot rename to $file.OLD: $!\n";
+        }
+        if ($> == 0) {
+            if (defined ($user) && defined ($group)) {
+                chown ($user, $group, "$file.new.$$")
+                    or warn "$file: cannot chown $file.new.$$: $!\n";
+            } else {
+                warn "$file: cannot find owner and group of $file\n";
+            }
+        }
+        rename ("$file.new.$$", $file)
+            or die "$file: cannot replace with $file.new.$$: $!\n";
+    }
+}
+
+# Upgrade a directory.  Scan the directory for files that have upgrade rules
+# defined and for each one of those, try running the upgrade rule.
+# Also rename obsolete files, appending ".OLD" to their name.
+sub upgrade_directory {
+    my $directory = shift;
+    my $file;
+    if ($directory =~ /^(.*)\/?$/) {
+        $directory = $1;
+    }
+    chdir $directory or die "Can't chdir to $directory: $!\n";
+    opendir (DIR, ".") or die "Can't opendir $directory: $!\n";
+    for (readdir DIR) {
+        if ($_ =~ /^([^\/]+)$/) {
+           $file = $1;
+        }
+        if (exists ($FIXES{$file})) {
+            upgrade_file ($file, $FIXES{$file});
+        }
+    }
+    closedir (DIR);
+    opendir (DIR, ".") or die "Can't opendir $directory: $!\n";
+    for (readdir DIR) {
+        if ($_ =~ /^([^\/]+)$/) {
+           $file = $1;
+        }
+        if (exists ($RENAME{$file})) {
+            if ($RENAME{$file} eq '') {
+                unlink ($file)
+                    or die "$file: cannot remove: $!\n";
+            } else {
+                rename ($file, $RENAME{$file})
+                    or die "$file: cannot rename to $file.OLD: $!\n";
+            }
+        }
+    }
+    closedir (DIR);
+}
+
+
+# The main routine.  Parse command-line options to figure out what we're
+# doing.
+my ($file, $type);
+Getopt::Long::config ('bundling');
+GetOptions ('file|f=s' => \$file,
+            'type|t=s' => \$type) or exit 1;
+if ($file) {
+    my ($dirname, $basename);
+    if ($file =~ /^(.*)\/([^\/]+)$/) {
+        $dirname = $1;
+        $basename = $2;
+    }
+    chdir $dirname or die "Can't chdir to $dirname: $!\n";
+    $type ||= $basename;
+    if (! exists($FIXES{$type})) { die "No upgrade rules defined for $basename\n" }
+    upgrade_file ($basename, $FIXES{$type});
+} else {
+    if (@ARGV != 1) { die "Usage: innupgrade <directory>\n" }
+    my $directory = shift;
+    upgrade_directory ($directory);
+}

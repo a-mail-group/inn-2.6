@@ -1,0 +1,125 @@
+=head1 NAME
+
+innupgrade - Upgrade INN configuration files
+
+=head1 SYNOPSIS
+
+B<innupgrade> I<directory>
+
+B<innupgrade> [B<-t> I<type>] B<-f> I<file>
+
+=head1 DESCRIPTION
+
+B<innupgrade> is intended to be run during a major upgrade of INN to fix
+the configuration files with any required changes.  If given a directory,
+it will scan that directory for any files that it has updates defined for,
+try to perform those updates, and replace the files with updated versions
+if applying the updates resulted in any changes.  The old versions of the
+files will be saved with a C<.OLD> extension.
+
+If the B<-f> flag is used, only that file will be updated.  If the file
+name doesn't match the standard file name of an INN configuration file,
+the optional B<-t> flag may be given to specify the type.  See
+L<"EXAMPLES"> for an example of this.
+
+Currently, B<innupgrade> knows how to apply the following updates:
+
+=over 2
+
+=item F<inn.conf>
+
+=over 2
+
+=item *
+
+Quote values with whitespace and comment out keys with no values, required
+for the change in configuration parsers introduced in S<INN 2.4>.  The new
+format is not backward compatible with the previous parser, since the
+previous parser will include the double-quotes in the value of the parameter.
+
+=item *
+
+Add the I<hismethod> parameter if not found (introduced in S<INN 2.4>,
+with the default value C<hisv6>).  Rename I<nntpactsync> to
+I<incominglogfrequency> (since S<INN 2.5>).  Rename I<addnntppostingdate>
+and I<addnntppostinghost> to respectively I<addinjectiondate> and
+I<addinjectionpostinghost> (since S<INN 2.6>).
+
+=item *
+
+If the F<overview.fmt> file exists, its content is merged in
+the I<extraoverviewadvertised> and I<extraoverviewhidden> parameters
+introduced in S<INN 2.5>.  The file is then renamed to F<overview.fmt.OLD>.
+
+=item *
+
+If the F<sasl.conf> file exists, its content is merged in the I<tlscapath>,
+I<tlscafile>, I<tlscertfile> and I<tlskeyfile> parameters introduced in
+S<INN 2.5>.  The file is then renamed to F<sasl.conf.OLD>.
+
+=back
+
+=item F<newsfeeds>
+
+=over 2
+
+=item *
+
+Replace the use of B<startinnfeed> with the appropriate direct invocation
+of B<innfeed> or B<imapfeed>.
+
+=back
+
+=back
+
+A few obsolete programs or configuration files are renamed with a C<.OLD>
+extension by B<innupgrade>.  Obsolete man pages are directly removed.
+
+Normally, B<innupgrade> should be run at least on the I<pathetc> directory
+after any upgrade of INN other than a patch release (any upgrade that changes
+the first or second version numbers).  This may occur automatically during
+the upgrade process.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-f> I<file>
+
+Only act on I<file> rather than working on an entire directory.
+
+=item B<-t> I<type>
+
+For a file specified with B<-f>, parse it and upgrade it as if it were
+named I<type>.  Used for upgrading files with the same syntax as normal
+INN configuration files but with different names.  Only makes sense in
+combination with B<-f>.
+
+=back
+
+=head1 EXAMPLES
+
+Upgrade any configuration files found in I<pathetc> and append a C<.OLD>
+extension to obsolete files in I<pathetc>:
+
+    innupgrade <pathetc in inn.conf>
+
+Upgrade only F</news/etc/inn.conf>:
+
+    innupgrade -f /news/etc/inn.conf
+
+Upgrade a file named F<inn-special.conf> that should have the same syntax
+as F<inn.conf>:
+
+    innupgrade -t inn.conf -f inn-special.conf
+
+Any upgrade rules that apply to F<inn.conf> will be applied to the
+alternate file.
+
+=head1 HISTORY
+
+Written by Russ Allbery <eagle@eyrie.org> for InterNetNews.
+
+$Id: innupgrade.pod 9767 2014-12-07 21:13:43Z iulius $
+
+=cut

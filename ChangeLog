@@ -1,0 +1,184 @@
+2019-02-07  iulius
+
+	* Update to latest upstream config.guess, config.sub and libtool
+	  versions
+
+	* Bump revision number for next release and copyright year
+
+2019-02-04  iulius
+
+	* Allow again the use of UTF-8 in header fields
+	  
+	  Regression since INN 2.6.1. Posts with internationalized header
+	  fields (UTF-8) are now accepted again.
+
+2018-12-29  iulius
+
+	* Update libtool from upstream 2.4.6-6 Debian version
+
+	* Update to latest upstream config.guess and config.sub files
+
+	* Update to latest pgpverify 1.30
+	  
+	  The previous INN release was done before the official release of
+	  pgpverify 1.30; that's why a few comments differed.
+
+	* Bump version information for our libraries released with INN
+	  2.6.3
+	  
+	  A few interfaces have changed in libinn (fqdn function, and new
+	  innconf parameter).
+
+	* nnrpd: improve logging of failed connections
+	  
+	  Properly logs the hostname of clients whose connection failed
+	  owing to an issue during the negotiation of a TLS session or high
+	  load average. Nothing was previously logged.
+	  
+	  Thanks to Paolo Amoroso for the bug report.
+
+2018-12-17  iulius
+
+	* Fix a const discarding when assigning a variable
+	  
+	  Python 3.7 changed the return value of PyUnicode_AsUTF8 from char
+	  to const char.
+
+	* Update to latest C TAP Harness upstream version
+
+2018-12-02  iulius
+
+	* Update comments of TLS implementation (it is not v1 only)
+
+	* Take into account return values of chdir and system commands
+
+	* Update to latest rra-c-util upstream version, improving Perl and
+	  Python support at configure time
+
+	* Update to latest rra-c-util upstream version
+	  
+	  The Autoconf m4 macros now check that the library's key header
+	  can be found as well as the library. It removes the need of
+	  several checks added in configure.ac to achieve that.
+	  
+	  Also fix INN_LIB_KRB5_OPTIONAL probing in the
+	  --enable-reduced-depends case when linking with libkrb5 is not
+	  possible but libcom_err is present. The probes for com_err were
+	  previously not skipped, resulting in a non-empty KRB5_LIBS
+	  containing only -lcom_err, which incorrectly caused the macro to
+	  indicate that Kerberos libraries were present.
+
+	* Take into account new GCC 7.0 and 8.0 warnings
+	  
+	  Merge commits 10193 and 10291 from CURRENT.
+
+	* Rewrite GetFQDN and rename to inn_getfqdn
+	  
+	  Use getaddrinfo with AI_CANONNAME instead of the tedious code to
+	  find an FQDN in gethostbyname results. Return a newly-allocated
+	  string instead of using a static buffer, since this function
+	  isn't performance-critical, avoiding buffer management
+	  complexity. Adjust call sites to do proper memory allocation
+	  handling of the return value.
+	  
+	  Remove some old disabled code to try to force canonicalization by
+	  adding a period to the end of the DNS query.
+	  
+	  Patch from Russ Allbery (backported from CURRENT).
+
+2018-11-11  iulius
+
+	* Mention in POD documentation that TLS 1.3 no longer allows
+	  TLS-level compression
+
+	* inn.conf: Add new tlsciphers13 parameter to fine-tune TLS 1.3
+	  cipher suites
+	  
+	  A separate cipher suite configuration parameter is needed for TLS
+	  1.3 as TLS 1.3 cipher suites are not compatible with TLS 1.2, and
+	  vice-versa.
+	  
+	  The tlsciphers13 parameter is based on the already existing
+	  tlsciphers parameter for TLS 1.2 and below.
+
+2018-11-10  iulius
+
+	* Fix the use of elliptic curve selection
+	  
+	  OpenSSL 1.1.0 removed the SSL_CTX_set_ecdh_auto function
+	  introduced with OpenSSL 1.0.2. This removal caused INN to always
+	  enforce NIST P-256 instead of using the most secure curve (which
+	  OpenSSL 1.1.0 does by default). Now fixed.
+
+2018-06-03  eagle
+
+	* Enable Perl and Python when testing snapshots
+
+2018-05-21  iulius
+
+	* Update to latest C TAP Harness and rra-c-util upstream versions
+
+	* Add trailing comment in CHECK and TAKETHIS responses
+	  
+	  Responses to CHECK and TAKETHIS commands did not mention the
+	  reason of a reject (notably from Python or Perl filter hook, but
+	  also directly from innd main checks). This is now fixed.
+	  
+	  closes #148
+
+2018-05-14  iulius
+
+	* Various number of typo fixes
+	  
+	  Thanks to Christoph Biedl for the bug report.
+
+	* Add support for embedded Python 3 interpreter to use with innd
+	  and nnrpd filter hooks
+	  
+	  * Update configure script to find Python 3 interpreter and
+	  correctly set linker flags for embedding it. Python 3.3.0 or
+	  later in the 3.x series is now supported.
+	  
+	  * Drop support for Python 2.2.0; now, Python 2.3.0 or later in
+	  the 2.x series is required because configure looks for a shared
+	  Python library, installed in the main library location in Python
+	  2.3.0 and later.
+	  
+	  * Add m4 macros to check for minimal Python version and module
+	  presence at configure time.
+	  
+	  * Notable changes for Python 3 are: - string literals are now
+	  considered as Unicode data whereas they were mere bytes in Python
+	  2. Consequently, encoding now really matters for strings, and
+	  UTF-8 is required in return values of Python filter hooks. (Note
+	  that compliance with NNTP would also want strings to be encoded
+	  in UTF-8.) Care should be given to use the right str or bytes
+	  objects in Python 3.
+	  
+	  - buffer objects no longer exist: they have been replaced with
+	  memoryview objects. Consequently, code to deal with them slighty
+	  changed.
+	  
+	  - integers no longer exist in the C API: they have been replaced
+	  with long integers (Py_ssize_t).
+	  
+	  - embedded Python initialization is now done differently (with a
+	  PyMODINIT_FUNC function). Try to homogeneize initialization with
+	  Python 2.x.
+	  
+	  * Improve error/notice logs.
+	  
+	  * Update and improve both documentation and samples accordingly.
+	  
+	  * Remove unused PYpathkey char * variable.
+	  
+	  * A few typo fixes.
+
+	* Fix prototypes in clientlib man page
+
+	* Typo fixes
+
+2018-03-22  iulius
+
+	* Bump revision number to next 2.6.3 version for STABLE
+

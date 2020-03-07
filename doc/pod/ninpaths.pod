@@ -1,0 +1,187 @@
+=head1 NAME
+
+ninpaths - Report Usenet Path: statistics (new inpaths)
+
+=head1 SYNOPSIS
+
+B<ninpaths> B<-p> B<-d> I<dumpfile>
+
+B<ninpaths> B<-r> I<site> B<-u> I<dumpfile> [B<-u> I<dumpfile> ...] B<-v>
+I<level>
+
+=head1 DESCRIPTION
+
+This is an efficient and space-saving B<inpaths> reporting program.  It works
+as follows:  you feed it the Path: lines via an INN channel feed or some
+other similar method, and from time to time the program writes all its
+internal counters accumulated so far to a dump file.  Another instance of
+the program picks up all the dump files, adds them up and formats them
+into the report.  The purpose of the final report is to summarize the
+frequency of occurrence of sites in the Path: headers of articles.
+
+Some central sites accumulate the Path: data from many news servers
+running this program or one like it, and then report statistics on
+the most frequently seen news servers in Usenet article Path: lines.
+The B<sendinpaths> script can be run daily to mail the accumulated
+statistics to such a site and remove the old dump files.
+
+You can get a working setup by doing the following:
+
+=over 4
+
+=item 1.
+
+Create a directory at I<pathlog>/path (replacing I<pathlog> here and in
+all steps that follow with the full path to your INN log directory).
+Do not change the name of the C<path> subdirectory because it is used
+by B<sendinpaths>.
+
+=item 2.
+
+Set up a channel feed using an entry like:
+
+    inpaths!:*:Tc,WP:<pathbin>/ninpaths -p -d <pathlog>/path/inpaths.%d
+
+if your version of INN supports C<WP> (2.0 and later all do).  Replace
+<pathbin> with the full path to your INN binaries directory, and
+<pathlog> with the full path to your INN log directory.
+
+Note that the naming convention of the generated inpaths dump files should
+not be changed.  B<sendinpaths> explicitly searches files whose name starts
+with C<inpaths.> in the <pathlog>/path directory.
+
+=item 3.
+
+Run the following command to start logging these statistics:
+
+    ctlinnd reload newsfeeds 'inpaths feed setup'
+
+=item 4.
+
+Enter into your news user crontab these two lines:
+
+    6   6 * * *   <pathbin>/ctlinnd flush inpaths!
+    10  6 * * *   <pathbin>/sendinpaths
+
+(the actual time doesn't matter).  This will force B<ninpaths> to generate
+a dump file once a day.  Then, a few minutes later, B<sendinpaths> collects
+the dumps, makes a report, sends the collected statistics, and deletes
+the old dumps.
+
+Note that you can manually generate a report without mailing it, and without
+deleting processed dump files, with C<sendinpaths -n>.  Another useful
+command is C<sendinpaths -c> so as to receive a copy of the e-mail sent
+by B<sendinpaths> and therefore make sure that everything is properly set.
+
+=item 5.
+
+In a couple of days, check that your daily statistics properly appear in
+L<http://top1000.anthologeek.net/>.
+
+=back
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-d> I<dumpfile>
+
+Save dumps in I<dumpfile>.  Any C<%d> in I<dumpfile> will be replaced with
+the current system time when the dump is made.  This option should be used
+with B<-p>.
+
+The format of these dump files is described below.
+
+=item B<-p>
+
+Read Path: lines from standard input.
+
+=item B<-r> I<site>
+
+Generate a report for I<site>.  Generally I<site> should be the value of
+I<pathhost> from F<inn.conf>.
+
+=item B<-u> I<dumpfile>
+
+Read data from I<dumpfile>.  This option can be repeated to read data from
+multiple dump files.
+
+=item B<-v> I<level>
+
+Set the verbosity level of the report.  Valid values for I<level> are C<0>,
+C<1>, and C<2>, with C<2> being the default.
+
+=back
+
+=head1 DUMP FILE FORMAT
+
+The format of the generated dump files is:
+
+   !!NINP <version> <start-time> <end-time> <nb-sites> <nb-articles> <average-time>
+   <site_0> <count_0> <site_1> <count_1> <site_2> <count_2> ...
+   !!NLREC
+   :<site_a>!<site_b>,<count_ab>:<site_c>!<site_d>,<count_cd> ...
+   !!NEND <nb-relations>
+
+where times are UNIX timestamps.  Then, I<nb-sites> records follow.
+Each record is separated by a space or a new line, and consists of a host
+name I<site_n> followed by a number of appearances I<count_n>.  The number
+of processed Path: header lines is I<nb-articles>.
+
+Afterwards, I<nb-relations> relations follow.  In 3.0.x versions, the
+relations are separated by a space or a new line, and their syntax is
+C<< I<site_a>!I<site_b>!I<count_ab> >> where I<site_a> and I<site_b>
+are numbers of the site records starting at 0.
+
+In 3.1.x versions, the relations begin with a colon and are
+separated by either nothing or a new line.  Their syntax is C<<
+:I<site_a>!I<site_b>,I<count_ab> >> with the same meaning as in previous
+versions.  The count can be omitted when it is C<1>.  More than two sites can
+be specified in the relation (C<< :I<site_a>!I<site_b>!I<site_c>,I<count_abc>
+>>).
+
+For instance:
+
+    !!NINP 3.1.1 1302944821 1302944838 5 2 1302944826
+    newsgate.cistron.nl 1 news.trigofacile.com 2 news.ecp.fr 2 usenet.stanford.edu 1
+    bleachbot 1
+    !!NLREC
+    :3!2:2!1,2:4!0:0!2
+    !!NLEND 4
+
+where the two processed Path: headers are:
+
+    Path: news.trigofacile.com!news.ecp.fr!usenet.stanford.edu!not-for-mail
+    Path: news.trigofacile.com!news.ecp.fr!newsgate.cistron.nl!bleachbot!not-for-mail
+
+=head1 NOTES
+
+If your INN doesn't have the C<WP> feed flag (1.5 does not, 1.6 and 1.7 do,
+2.0 and later all do), use the following F<newsfeeds> entry:
+
+   inpaths!:*:Tc,WH:<pathbin>/ginpaths
+
+where B<ginpaths> is the following script:
+
+    #!/bin/sh
+    exec egrep '^Path: ' | <pathbin>/ninpaths -p -d <pathlog>/path/inpaths.%d
+
+replacing <pathbin> and <pathlog> as above.
+
+=head1 HISTORY
+
+This is a slightly modified version of Olaf Titz's original B<ninpaths>
+program, which is posted to alt.sources and kept on his WWW archive under
+L<http://sites.inka.de/~bigred/sw/>.
+
+The idea and some implementation details for B<ninpaths> come from the
+original B<inpaths> program, but most of the code has been rewritten for
+clarity.  This program is in the public domain.
+
+$Id: ninpaths.pod 9383 2011-12-25 20:56:10Z iulius $
+
+=head1 SEE ALSO
+
+newsfeeds(5), sendinpaths(8).
+
+=cut

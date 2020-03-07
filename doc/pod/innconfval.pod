@@ -1,0 +1,110 @@
+=head1 NAME
+
+innconfval - Get configuration parameters from F<inn.conf>
+
+=head1 SYNOPSIS
+
+B<innconfval> [B<-pstv>] [B<-i> I<file>] [I<parameter> ...]
+
+B<innconfval> B<-C> [B<-i> I<file>]
+
+=head1 DESCRIPTION
+
+B<innconfval> normally prints the values of the parameters specified on
+the command line.  By default, it just prints the parameter values, but if
+B<-p>, B<-s>, or B<-t> are given, it instead prints the parameter and
+value in the form of a variable assignment in Perl, Bourne shell, or Tcl
+respectively.  If no parameters are specifically requested, B<innconfval>
+prints out all parameter values (this isn't particularly useful unless one
+of B<-p>, B<-s>, or B<-t> were specified).
+
+All parameters are taken from F<inn.conf> except for I<version>, which is
+always the version string of INN.
+
+If given the B<-C> option, B<innconfval> instead checks F<inn.conf>,
+reporting any problems found to standard error.  B<innconfval> will exit
+with status 0 if no problems are found and with status 1 otherwise.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-C>
+
+Check F<inn.conf> rather than printing out the values of parameters.
+
+=item B<-i> I<file>
+
+Use I<file> as the source configuration file rather than F<inn.conf>.
+I<file> must be a valid F<inn.conf> file and will be parsed the same as
+F<inn.conf> would be.
+
+=item B<-p>
+
+Print out parameters as Perl assignment statements.  The variable name
+will be the same as the F<inn.conf> parameter, and string values will be
+enclosed in single quotes with appropriate escaping.  Boolean values will
+be mapped to the strings C<true> or C<false>.  List values will be mapped
+to an array of strings.  NULL values are printed out with the C<undef> value.
+
+Here is an example:
+
+    $enableoverview = 'true';
+    @extraoverviewadvertised = ( 'Newsgroups', 'Injection-Info' );
+    @extraoverviewhidden = undef;
+    $organization = 'Let\'s try nasty "quotes"';
+    $maxforks = 10;
+
+If B<innconfval> is called via the Perl C<INN::Config> module, all
+these variables are properly exported.
+
+=item B<-s>
+
+Print out parameters as Bourne shell assignment statements.  The variable
+name will be the F<inn.conf> parameter name in all capitals, and all
+variables will be exported, if not NULL.  String values will be enclosed in
+single quotes with appropriate escaping, and boolean values will be mapped
+to C<true> or C<false>.  List values will be mapped to a space-separated
+string representing an array of strings (as Bourne shell does not recognize
+arrays, contrary to several other shells, an array cannot be returned for
+interoperability reasons).
+
+Here is an example:
+
+    ENABLEOVERVIEW=true; export ENABLEOVERVIEW;
+    EXTRAOVERVIEWADVERTISED='"Newsgroups" "Injection-Info"'; export EXTRAOVERVIEWADVERTISED;
+    ORGANIZATION='Let'\''s try nasty "quotes"'; export ORGANIZATION;
+    MAXFORKS=10; export MAXFORKS;
+
+=item B<-t>
+
+Print out parameters as Tcl assignment statements.  The variable name will
+be the same as the F<inn.conf> parameter name but with C<inn_> prepended,
+and string variables will be escaped appropriately.  Boolean values will
+be mapped to the strings C<true> or C<false>.  List values will be mapped
+to an array of strings.  NULL values are not printed out.
+
+Here is an example:
+
+    set inn_enableoverview "true"
+    set inn_extraoverviewadvertised { "Newsgroups" "Injection-Info" }
+    set inn_organization "Let's try nasty \"quotes\""
+    set inn_maxforks 10
+
+=item B<-v>
+
+Print INN's version.  This is equivalent to C<innconfval version>.
+
+=back
+
+=head1 HISTORY
+
+Written by Rich $alz <rsalz@uunet.uu.net> for InterNetNews.
+
+$Id: innconfval.pod 9288 2011-07-22 23:08:57Z iulius $
+
+=head1 SEE ALSO
+
+inn.conf(5), INN::Config(3pm).
+
+=cut

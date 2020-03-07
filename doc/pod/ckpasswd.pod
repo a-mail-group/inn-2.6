@@ -1,0 +1,196 @@
+=head1 NAME
+
+ckpasswd - nnrpd password authenticator
+
+=head1 SYNOPSIS
+
+B<ckpasswd> [B<-gs>] [B<-d> I<database>] [B<-f> I<filename>]
+[B<-u> I<username> B<-p> I<password>]
+
+=head1 DESCRIPTION
+
+B<ckpasswd> is the basic password authenticator for B<nnrpd>, suitable for
+being run from an auth stanza in F<readers.conf>.  See readers.conf(5) for
+more information on how to configure an B<nnrpd> authenticator.
+
+B<ckpasswd> accepts a username and password from B<nnrpd> and tells nnrpd(8)
+whether that's the correct password for that username.  By default, when
+given no arguments, it tries to check the password using PAM if support
+for PAM was found when INN was built.  Failing that, it tries to check the
+password against the password field returned by getpwnam(3).  Note that
+these days most systems no longer make real passwords available via
+getpwnam(3) (some still do if and only if the program calling getpwnam(3)
+is running as root).
+
+When using PAM, B<ckpasswd> identifies itself as C<nnrpd>, not as
+C<ckpasswd>, and the PAM configuration must be set up accordingly.  The
+details of PAM configuration are different on different operating systems
+(and even different Linux distributions); see L<EXAMPLES> below for help
+getting started, and look for a pam(7) or pam.conf(4) manual page on your
+system.
+
+When using any method other than PAM, B<ckpasswd> expects all passwords to
+be stored encrypted by the system crypt(3) function and calls crypt(3) on
+the supplied password before comparing it to the expected password.  If
+you're using a different password hash scheme (like MD5), you must use
+PAM.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-d> I<database>
+
+Read passwords from a database (ndbm, gdbm or dbm format depending on
+what your system has) rather than by using getpwnam(3).  B<ckpasswd>
+expects I<database>.dir and I<database>.pag to exist and to be a database
+keyed by username with the encrypted passwords as the values.
+
+While INN doesn't come with a program intended specifically to create such
+databases, on most systems it's fairly easy to write a Perl script to do
+so.  Something like:
+
+    #!/usr/bin/perl
+    use NDBM_File;
+    use Fcntl;
+    tie (%db, 'NDBM_File', '/path/to/database', O_RDWR|O_CREAT, 0640)
+        or die "Cannot open /path/to/database: $!\n";
+    $| = 1;
+    print "Username: ";
+    my $user = <STDIN>;
+    chomp $user;
+    print "Password: ";
+    my $passwd = <STDIN>;
+    chomp $passwd;
+    my @alphabet = ('.', '/', 0..9, 'A'..'Z', 'a'..'z');
+    my $salt = join '', @alphabet[rand 64, rand 64];
+    $db{$user} = crypt ($passwd, $salt);
+    untie %db;
+
+Note that this will echo back the password when typed; there are obvious
+improvements that could be made to this, but it should be a reasonable
+start.  Sometimes a program like this will be available with the name
+B<dbmpasswd>.
+
+This option will not be available on systems without ndbm, gdbm or dbm
+libraries.
+
+=item B<-f> I<filename>
+
+Read passwords from the given file rather than using getpwnam(3).  The
+file is expected to be formatted like a system password file, at least
+vaguely.  That means each line should look something like:
+
+    username:pdIh9NCNslkq6
+
+(and each line may have an additional colon after the encrypted password
+and additional data; that data will be ignored by B<ckpasswd>).
+Lines starting with a number sign (C<#>) are ignored.  INN does not
+come with a utility to create the encrypted passwords, but B<htpasswd>
+(which comes with Apache) can do so and it's a quick job with Perl
+(see the example script under B<-d>, or also below).  If using Apache's
+B<htpasswd> program, be sure to give it the B<-d> option so that it
+will use crypt(3).
+
+A line in I<filename> for the user C<user> with the password C<pass>
+would be C<user:LIfOpbjNaEQYE> as obtained by the following command:
+
+    % htpasswd -nbd user pass
+    user:LIfOpbjNaEQYE
+
+In case B<htpasswd> is not installed or if you do not want to depend
+on it, another command involving Perl does a similar job:
+
+    % perl -e 'print "user:".crypt("pass", "LI")."\n";'
+    user:LIfOpbjNaEQYE
+
+=item B<-g>
+
+Attempt to look up system group corresponding to username and return a
+string like C<user@group> to be matched against in F<readers.conf>.  This
+option is incompatible with the B<-d> and B<-f> options.
+
+=item B<-p> I<password>
+
+Use I<password> as the password for authentication rather than reading a
+password using the B<nnrpd> authenticator protocol.  This option is useful
+only for testing your authentication system (particularly since it
+involves putting a password on the command line), and does not work when
+B<ckpasswd> is run by B<nnrpd>.  If this option is given, B<-u> must also
+be given.
+
+=item B<-s>
+
+Check passwords against the result of getspnam(3) instead of getpwnam(3).
+This function, on those systems that supports it, reads from F</etc/shadow>
+or similar more restricted files.  If you want to check passwords supplied
+to nnrpd(8) against system account passwords, you will probably have to
+use this option on most systems.
+
+Most systems require special privileges to call getspnam(3), so in order
+to use this option you may need to make B<ckpasswd> setgid to some group
+(like group C<shadow>) or even setuid root.  B<ckpasswd> has not been
+specifically audited for such uses!  It is, however, a very small program
+that you should be able to check by hand for security.
+
+This configuration is not recommended if it can be avoided, for serious
+security reasons.  See "SECURITY CONSIDERATIONS" in readers.conf(5) for
+discussion.
+
+=item B<-u> I<username>
+
+Authenticate as I<username>.  This option is useful only for testing (so
+that you can test your authentication system easily) and does not work
+when B<ckpasswd> is run by B<nnrpd>.  If this option is given, B<-p> must
+also be given.
+
+=back
+
+=head1 EXAMPLES
+
+See readers.conf(5) for examples of nnrpd(8) authentication configuration
+that uses B<ckpasswd> to check passwords.
+
+An example PAM configuration for F</etc/pam.conf> that tells B<ckpasswd>
+to check usernames and passwords against system accounts is:
+
+    nnrpd auth    required pam_unix.so
+    nnrpd account required pam_unix.so
+
+Your system may want you to instead create a file named F<nnrpd> in
+F</etc/pam.d> with lines like:
+
+    auth    required pam_unix.so
+    account required pam_unix.so
+
+This is only the simplest configuration.  You may be able to include
+common shared files, and you may want to stack other modules, either to
+allow different authentication methods or to apply restrictions like lists
+of users who can't authenticate using B<ckpasswd>.  The best guide is the
+documentation for your system and the other PAM configurations you're
+already using.
+
+To test to make sure that B<ckpasswd> is working correctly, you can run it
+manually and then give it the username (prefixed with C<ClientAuthname:>)
+and password (prefixed with C<ClientPassword:>) on standard input.  For
+example:
+
+    (echo 'ClientAuthname: test' ; echo 'ClientPassword: testing') \
+        | ckpasswd -f /path/to/passwd/file
+
+will check a username of C<test> and a password of C<testing> against the
+username and passwords stored in F</path/to/passwd/file>.  On success,
+B<ckpasswd> will print C<User:test> and exit with status C<0>.  On failure,
+it will print some sort of error message and exit a non-zero status.
+
+=head1 HISTORY
+
+Written by Russ Allbery <eagle@eyrie.org> for InterNetNews.
+
+$Id: ckpasswd.pod 9937 2015-09-02 12:44:39Z iulius $
+
+=head1 SEE ALSO
+
+crypt(3), nnrpd(8), pam(7), readers.conf(5).
+
+=cut

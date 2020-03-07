@@ -1,0 +1,161 @@
+#! /usr/bin/perl -w
+# fixscript will replace this line with code to load INN::Config
+
+# $Id: news2mail.in 10076 2016-10-08 20:37:36Z iulius $
+# News to mail channel backend.
+#
+# INN gives us
+#     @token@ lists
+# for each article that needs to be mailed.  We invoke sm on the
+# localhost to get the actual article and stuff it down sendmail's throat.
+# 
+# This program expects to find a file that maps listname to listaddrs:
+#     <pathetc>/news2mail.cf
+# which must contain address mapping lines such as:
+#
+#    list-big-red-ants	big-red-ants@lists.ucsd.edu	news+big-red-ants@local.news.server.org
+#
+# where the first token is the name fed to us from the INN's newsfeeds file.
+# The second token is the actual address sendmail ships the article to.
+# The third token is optional:  it sets the envelope-from address.
+#
+# In the INN's newsfeeds file, you need to have a channel feed:
+#     news2mail!:!*:Ac,Tc,Wn*:<pathbin>/news2mail
+# and a site for each of the various mailing lists you're feeding,
+# such as
+#     list-big-red-ants/lists.ucsd.edu:!*,rec.pets.red-ants:Ap,Tm:news2mail!
+#
+# Error handling is nearly nonexistent.
+#
+#     - Brian Kantor for the initial script.  (UCSD, August 1998.)
+#     - D. Stussy added support for the third optional token for envelope-from
+#       address.  (June 2008.)
+
+require 5.006;
+
+use FileHandle;
+use strict;
+
+my $cfFile = $INN::Config::pathetc . "/news2mail.cf" ;
+my $sendmail = $INN::Config::mta ;
+my $sm = $INN::Config::pathbin . "/sm" ;
+my %maddr = ();
+my %saddr = ();
+my $use_syslog = 0;
+
+eval { require Sys::Syslog; import Sys::Syslog; $use_syslog = 1; };
+
+if ($use_syslog) {
+    if ($Sys::Syslog::VERSION lt 0.15) {
+        eval "sub Sys::Syslog::_PATH_LOG { '/dev/log' }" if $^O eq 'dec_osf';
+        Sys::Syslog::setlogsock('unix') if $^O =~ /linux|dec_osf|freebsd|darwin/;
+    }
+    openlog('news2mail', 'pid', $INN::Config::syslog_facility);
+}
+
+syslog('info', 'begin') if ($use_syslog);
+
+
+# Load the list names and their mail addresses from the configuration file.
+# Comments and blank lines are ignored.
+unless (open(CF, "< $cfFile")) {
+    syslog('notice', 'CF open failed %m') if ($use_syslog);
+    die "bad CF";
+}
+
+while (<CF>) {
+    next if /^#|^\s+$/;
+    my ($ln, $ma, $sa) = split /\s+/;
+    $maddr{$ln} = $ma;
+    $saddr{$ln} = $sa if ($sa =~ /.+/);
+    $sa = $INN::Config::newsuser if (!defined($saddr{$ln}));
+    syslog('debug', "List=$ln, To=<$ma>, From=<$sa>") if ($use_syslog);
+}
+close(CF);
+
+
+# For each incoming line from the INN channel.
+while (<STDIN>) {
+    chomp;
+    syslog('info', $_) if ($use_syslog);
+
+    my ($token, $lnames) = split(/\s+/, $_, 2);
+    my @addrs = split(/\s+/, $lnames);
+    my @good = grep {  defined($maddr{$_}) } @addrs;
+    my @bad  = grep { !defined($maddr{$_}) } @addrs;
+
+    if (!@good) {
+        syslog('notice', "unknown list(s):  $lnames") if ($use_syslog);
+        next;
+    }
+
+    if (@bad) {
+        syslog('info', 'skipping list(s):  ', join(' ', @bad)) if ($use_syslog);
+    }
+
+    my $sa = $INN::Config::newsuser;
+    my @src = grep { defined($saddr{$_}) } @good;
+    $sa = @saddr{@src} if (@src == 1);
+    mailto($token, $sa, @maddr{@good});
+}
+
+syslog("info", "end") if ($use_syslog);
+
+exit 0;
+
+
+sub mailto {
+    my($t, $s, @a) = @_;
+
+    my $sendmail = $INN::Config::mta;
+    $sendmail =~ s!\s*%s!!;
+    my @command = (split(' ', $sendmail), '-ee', '-odq', "-f$s",
+                   "-pNNTP:$INN::Config::pathhost", @a);
+
+    syslog('debug', join(' ', @command)) if ($use_syslog);
+
+    unless (open(SM, '|-', @command)) {
+        syslog('error', join(' ', '|', @command), 'failed!') if ($use_syslog);
+        die "bad $sendmail";
+    }
+
+    my $smgr = "$sm -q $t |";
+
+    unless (open(SMGR, $smgr)) {
+        syslog('error', "$smgr failed!") if ($use_syslog);
+        die "bad $smgr";
+    }
+
+    # Header.
+    while (<SMGR>) {
+        chomp;
+
+        # Empty line signals the end of header.
+        if (/^$/) {
+            print SM "To: ".join(",", @a)."\n\n";
+            last;
+        }
+
+        # Skip unnecessary headers.
+        next if /^X-/i;
+        next if /^To:/i;
+        next if /^NNTP-Posting-Date:/i;
+        next if /^NNTP-Posting-Host:/i;
+        next if /^Lines:/i;
+        next if /^Xref:/i;
+        next if /^Path:/i;
+
+        # Convert Newsgroups: header into X-Newsgroups:.
+        s/^Newsgroups:/X-Newsgroups:/i;
+
+        print SM "$_\n";
+    }
+
+    # Body.
+    while (<SMGR>) {
+        print SM $_;
+    }
+
+    close(SMGR);
+    close(SM);
+}

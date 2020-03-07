@@ -1,0 +1,75 @@
+#! /bin/sh
+
+##  $Id: fixconfig.in 8471 2009-05-17 08:25:35Z iulius $
+##
+##  Make variable substitutions in configuration files.
+##
+##  This script does something very similar to what config.status does, but
+##  it fully resolves the various path variables (prefix, exec_prefix, etc.)
+##  so that they don't contain any variable substitutions.  It's easier to
+##  do this in a separate script than try to use eval or the like to resolve
+##  the variable names inside configure, particularly since prefix and
+##  exec_prefix aren't set until the end of the script.
+
+# The paths set by configure.
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+bindir=@bindir@
+libexecdir=@libexecdir@
+libdir=@libdir@
+sbindir=@sbindir@
+sysconfdir=@sysconfdir@
+
+# Additional paths specific to INN.
+CONTROLDIR=@CONTROLDIR@
+DBDIR=@DBDIR@
+FILTERDIR=@FILTERDIR@
+HTTPDIR=@HTTPDIR@
+LIBPERLDIR=@LIBPERLDIR@
+LOGDIR=@LOGDIR@
+RUNDIR=@RUNDIR@
+SPOOLDIR=@SPOOLDIR@
+tmpdir=@tmpdir@
+
+# Additional variables that are substituted into configuration files.
+DO_PGPVERIFY=@DO_PGPVERIFY@
+HOSTNAME=@HOSTNAME@
+SENDMAIL=@SENDMAIL@
+
+# We can probably just assume sed is on the path, but since we have it, we may
+# as well use it.
+SED=@SED@
+
+input="$1"
+if [ -z "$input" ] ; then
+    echo "No input file specified" >&2
+    exit 1
+fi
+
+output="$2"
+if [ -z "$output" ] ; then
+    output=`echo "$input" | $SED -e 's/\.in$//'`
+fi
+if [ x"$input" = x"$output" ] ; then
+    echo "No output file specified and input file doesn't end in .in" >&2
+    exit 1
+fi
+
+$SED -e "s,@prefix[@],$prefix,g" \
+     -e "s,@bindir[@],$bindir,g" \
+     -e "s,@libexecdir[@],$libexecdir,g" \
+     -e "s,@libdir[@],$libdir,g" \
+     -e "s,@sbindir[@],$sbindir,g" \
+     -e "s,@sysconfdir[@],$sysconfdir,g" \
+     -e "s,@CONTROLDIR[@],$CONTROLDIR,g" \
+     -e "s,@DBDIR[@],$DBDIR,g" \
+     -e "s,@FILTERDIR[@],$FILTERDIR,g" \
+     -e "s,@HTTPDIR[@],$HTTPDIR,g" \
+     -e "s,@LIBPERLDIR[@],$LIBPERLDIR,g" \
+     -e "s,@LOGDIR[@],$LOGDIR,g" \
+     -e "s,@RUNDIR[@],$RUNDIR,g" \
+     -e "s,@SPOOLDIR[@],$SPOOLDIR,g" \
+     -e "s,@tmpdir[@],$tmpdir,g" \
+     -e "s,@DO_PGPVERIFY[@],$DO_PGPVERIFY,g" \
+     -e "s,@HOSTNAME[@],$HOSTNAME,g" \
+     -e "s,@SENDMAIL[@],$SENDMAIL,g" < "$input" > "$output"

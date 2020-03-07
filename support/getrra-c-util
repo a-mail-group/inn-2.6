@@ -1,0 +1,326 @@
+#!/bin/sh
+
+##  $Id: getrra-c-util 10307 2018-12-02 14:31:42Z iulius $
+##
+##  Synchronize INN files maintained in rra-c-util with upstream.
+##
+##  This script downloads the latest version of the files maintained
+##  in the rra-c-util package that INN uses for most of its utility and
+##  portability functions.  These files are available at
+##  <https://www.eyrie.org/~eagle/software/rra-c-util/>.
+##
+##  Running this script permits keeping up-to-date most of INN utility and
+##  portability functions by automatically fetching the latest version of
+##  the upstream files, and putting them in the expected location in the
+##  INN source code.
+##  The name of the files that have been modified since the last run of the
+##  script are written to standard output.  Have a look at the changes and,
+##  if all looks right, commit the changes.
+
+##  URL where the files can be downloaded.
+URL_START="https://git.eyrie.org/?p=devel/rra-c-util.git;a=blob_plain;hb=HEAD;f="
+
+##  This function downloads the files and copies them to the expected
+##  location in the INN source code, after having performed a few minimal
+##  changes to integrate them in the INN build system.
+##  If a file is not found in upstream or has been modified since the last
+##  run of the script, write it on standard output.
+##
+##  This function expects the following arguments:
+##    $1 - full path of the file to download in the upstream package
+##    $2 - directory where the file should be copied in INN source code
+##    $3 - name of the file in INN source code
+download ()
+{
+  TEMP=$3.tmp
+
+  rm -f ${TEMP}
+  wget -q "${URL_START}$1" -O ${TEMP}
+
+  if [ ! -s "${TEMP}" ]
+  then
+    echo "File $1 does not exist in upstream package"
+  else
+    # Add the SVN Id keyword at the beginning of source code files,
+    # and update the path of included C header files.
+    # Change "RRA_" to "INN_", "rra_" to "inn_", and "UTIL_" to "INN_"
+    # so as to keep a homogeneous naming convention in INN source code.
+    # Changes in shell, m4 and C files are not the same.
+    if [ "$2" = "m4" ]
+    then
+      sed -i -e 's/RRA_/INN_/g' \
+             -e 's/rra_/inn_/g' \
+             -e '1 a\
+dnl \$Id\$' \
+             ${TEMP}
+
+      # Remove useless function for INN.
+      if [ "$3" = "cc-flags.m4" ]
+      then
+        sed -i -e '/dnl Provides INN_PROG_CC_WARNINGS_FLAGS/,+6d' \
+               -e '/dnl Determine the full set/,$d' \
+             ${TEMP}
+      fi
+    elif [ "$2" = "include/inn" ] || [ "$2" = "include/portable" ] \
+      || [ "$2" = "include" ] || [ "$2" = "lib" ] || [ "$2" = "tests/lib" ] \
+      || [ "$2" = "tests/lib/network" ] || [ "$2" = "tests/tap" ]
+    then
+      if [ "$3" = "xmalloc.t" ]
+      then
+        # Path should be updated in this shell script.
+        sed -i -e "3 i \\
+# \$Id\$\\
+#" \
+               -e 's/\$C_TAP_BUILD\/util/\$C_TAP_BUILD\/lib/g' \
+               ${TEMP}
+        chmod 755 ${TEMP}
+      else
+        if [ "$3" = "network.c" ]
+        then
+          # Apply specific changes to take into account how sourceaddress
+          # and sourceaddress6 work.
+          sed -i -e "61 i \\
+#include \"inn/innconf.h\"" \
+                 -e '455 s/)$/ \&\& innconf == NULL)/' \
+                 -e '456,457d' \
+                 -e "462 i \\
+        if (source == NULL && innconf != NULL)\\
+            source = innconf->sourceaddress;\\
+        if (source == NULL ||\\
+            strcmp(source, \"all\") == 0 || strcmp(source, \"any\") == 0)\\
+              return true;\\
+" \
+                 -e "475 i \\
+        if (source == NULL && innconf != NULL)\\
+            source = innconf->sourceaddress6;\\
+        if (source == NULL ||\\
+            strcmp(source, \"all\") == 0 || strcmp(source, \"any\") == 0)\\
+              return true;\\
+" \
+               ${TEMP}
+        fi
+
+        if [ "$3" = "clibrary.h" ]
+        then
+          # Add INN-specific stuff.
+          sed -i -e 's/<portable\/macros\.h>/"inn\/macros.h"/g' \
+                 -e 's/PORTABLE_SYSTEM_H/CLIBRARY_H/g' \
+                 -e "8 i \\
+ *     #include \"inn/macros.h\"" \
+                 -e "108 i \\
+/*\\
+ * This almost certainly isn't necessary, but it's not hurting anything.\\
+ * gcc assumes that if SEEK_SET isn't defined none of the rest are either,\\
+ * so we certainly can as well.\\
+ */\\
+#ifndef SEEK_SET\\
+# define SEEK_SET 0\\
+# define SEEK_CUR 1\\
+# define SEEK_END 2\\
+#endif\\
+" \
+                 -e "122 i \\
+/*\\
+ * Handle defining fseeko and ftello.  If HAVE_FSEEKO is defined, the system\\
+ * header files take care of this for us.  Otherwise, see if we're building\\
+ * with large file support.  If we are, we have to provide some real fseeko\\
+ * and ftello implementation; declare them if they're not already declared and\\
+ * we'll use replacement versions in libinn.  If we're not using large files,\\
+ * we can safely just use fseek and ftell.\\
+ *\\
+ * We'd rather use fseeko and ftello unconditionally, even when we're not\\
+ * building with large file support, since they're a better interface.\\
+ * Unfortunately, they're available but not declared on some systems unless\\
+ * building with large file support, the AC_FUNC_FSEEKO Autoconf function\\
+ * always turns on large file support, and our fake declarations won't work on\\
+ * some systems (like HP_UX).  This is the best compromise we've been able to\\
+ * come up with.\\
+ */\\
+#if !HAVE_FSEEKO\\
+# if DO_LARGEFILES\\
+#  if !HAVE_DECL_FSEEKO\\
+extern int fseeko(FILE *, off_t, int);\\
+#  endif\\
+#  if !HAVE_DECL_FTELLO\\
+extern off_t ftello(FILE *);\\
+#  endif\\
+# else\\
+#  define fseeko(f, o, w) fseek((f), (long)(o), (w))\\
+#  define ftello(f) ftell(f)\\
+# endif\\
+#endif\\
+\\
+/* Other prototypes. */\\
+#if !HAVE_DECL_PREAD\\
+extern ssize_t pread(int, void *, size_t, off_t);\\
+#endif\\
+#if !HAVE_DECL_PWRITE\\
+extern ssize_t pwrite(int, const void *, size_t, off_t);\\
+#endif\\
+#if !HAVE_SYMLINK\\
+extern int symlink(const char *, const char *);\\
+#endif\\
+" \
+               -e "163 i \\
+#if !HAVE_DECL_STRLCAT\\
+extern size_t strlcat(char *, const char *, size_t);\\
+#endif\\
+#if !HAVE_DECL_STRLCPY\\
+extern size_t strlcpy(char *, const char *, size_t);\\
+#endif\\
+#if !HAVE_GETPAGESIZE\\
+extern int getpagesize(void);\\
+#endif\\
+#if !HAVE_STRCASECMP\\
+extern int strcasecmp(const char *, const char *);\\
+extern int strncasecmp(const char *, const char *, size_t);\\
+#endif\\
+#if !HAVE_STRSPN\\
+extern size_t strspn(const char *, const char *);\\
+#endif\\
+#if !HAVE_STRTOK\\
+extern char * strtok(char *, const char *);\\
+#endif" \
+               -e '/#if !HAVE_DAEMON/,+2d' \
+               -e '/#if !HAVE_ISSETUGID/,+2d' \
+               -e '/#if !HAVE_STRNDUP/,+2d' \
+               ${TEMP}
+        fi
+
+        sed -i -e 's/UTIL_/INN_/g' \
+               -e '/^\/\* Default to a hidden visibility for all .* functions\. \*\/$/,+2d' \
+               -e '/^\/\* Undo default visibility change\. \*\/$/,+2d' \
+               -e 's/<config\.h>$/"config.h"/g' \
+               -e 's/<portable\/system\.h>/"clibrary.h"/g' \
+               -e 's/<util\/\(.*\)>/"inn\/\1"/g' \
+               -e 's/<portable\/\(.*\)>/"portable\/\1"/g' \
+               -e 's/<tests\/tap\/\(.*\)>/"tap\/\1"/g' \
+               -e 's/<tests\/util\/\(.*\)>/"lib\/\1"/g' \
+               -e '1 s/$/ \$Id\$\n */' \
+               ${TEMP}
+
+        # For compatibility with the integration of C TAP Harness in INN.
+        if [ "$2" = "tests/lib" ] || [ "$2" = "tests/lib/network" ] \
+          || [ "$3" = "process.c" ]
+        then
+          sed -i -e "0,/^$/{s/^$/\n#define LIBTEST_NEW_FORMAT 1\n/}" \
+                 ${TEMP}
+        fi
+
+        # Rename a few symbols defined by autoconf since they're too likely
+        # to conflict with other packages.
+        # Please see support/mksystem for more information.
+        if [ "$2" = "include/inn" ]
+        then
+          sed -i -e 's/\([^_]\)HAVE_C99_VAMACROS/\1INN_HAVE_C99_VAMACROS/g' \
+                 -e 's/\([^_]\)HAVE_GNU_VAMACROS/\1INN_HAVE_GNU_VAMACROS/g' \
+                 -e 's/\([^_]\)HAVE_INET6/\1INN_HAVE_INET6/g' \
+                 -e 's/\([^_]\)HAVE_INTTYPES_H/\1INN_HAVE_INTTYPES_H/g' \
+                 -e 's/\([^_]\)HAVE_MSYNC_3_ARG/\1INN_HAVE_MSYNC_3_ARG/g' \
+                 -e 's/\([^_]\)HAVE_STDBOOL_H/\1INN_HAVE_STDBOOL_H/g' \
+                 -e 's/\([^_]\)HAVE_SYS_BITYPES_H/\1INN_HAVE_SYS_BITYPES_H/g' \
+                 -e 's/\([^_]\)HAVE__BOOL/\1INN_HAVE__BOOL/g' \
+                 -e 's/"portable\/\(.*\)"/"inn\/portable-\1"/g' \
+                 -e 's/"config\.h"/<inn\/defines.h>/g' \
+                 ${TEMP}
+        fi
+      fi
+    fi
+
+    mv -f ${TEMP} ../$2/$3
+    svn status ../$2/$3
+  fi
+}
+
+##  Synchronize Autoconf macros from upstream.
+download m4/bdb.m4 m4 bdb.m4
+download m4/cc-flags.m4 m4 cc-flags.m4
+download m4/inet-ntoa.m4 m4 inet-ntoa.m4
+download m4/krb5-config.m4 m4 krb5-config.m4
+download m4/krb5.m4 m4 krb5.m4
+download m4/lib-depends.m4 m4 lib-depends.m4
+download m4/lib-helper.m4 m4 lib-helper.m4
+download m4/lib-pathname.m4 m4 lib-pathname.m4
+download m4/openssl.m4 m4 openssl.m4
+download m4/pam-const.m4 m4 pam-const.m4
+download m4/perl.m4 m4 perl.m4
+download m4/python.m4 m4 python.m4
+download m4/sasl.m4 m4 sasl.m4
+download m4/snprintf.m4 m4 snprintf.m4
+download m4/socket-unix.m4 m4 socket-unix.m4
+download m4/socket.m4 m4 socket.m4
+download m4/vamacros.m4 m4 vamacros.m4
+download m4/zlib.m4 m4 zlib.m4
+
+##  Synchronize portability functions from upstream.
+download portable/asprintf.c lib asprintf.c
+download portable/getaddrinfo.c lib getaddrinfo.c
+download portable/getaddrinfo.h include/portable getaddrinfo.h
+download portable/getnameinfo.c lib getnameinfo.c
+download portable/getnameinfo.h include/portable getnameinfo.h
+download portable/inet_aton.c lib inet_aton.c
+download portable/inet_ntoa.c lib inet_ntoa.c
+download portable/inet_ntop.c lib inet_ntop.c
+download portable/macros.h include/portable macros.h
+download portable/mkstemp.c lib mkstemp.c
+download portable/reallocarray.c lib reallocarray.c
+download portable/setenv.c lib setenv.c
+download portable/seteuid.c lib seteuid.c
+download portable/snprintf.c lib snprintf.c
+download portable/socket.h include/portable socket.h
+download portable/socket-unix.h include/portable socket-unix.h
+download portable/stdbool.h include/portable stdbool.h
+download portable/system.h include clibrary.h
+download portable/uio.h include/portable uio.h
+
+##  Synchronize utility functions from upstream.
+download util/buffer.c lib buffer.c
+download util/buffer.h include/inn buffer.h
+download util/fdflag.c lib fdflag.c
+download util/fdflag.h include/inn fdflag.h
+download util/macros.h include/inn macros.h
+download util/messages.c lib messages.c
+download util/messages.h include/inn messages.h
+download util/network.c lib network.c
+download util/network.h include/inn network.h
+download util/vector.c lib vector.c
+download util/vector.h include/inn vector.h
+download util/xmalloc.c lib xmalloc.c
+download util/xmalloc.h include/inn xmalloc.h
+download util/xwrite.c lib xwrite.c
+download util/xwrite.h include/inn xwrite.h
+
+##  Synchronize test suite files for portability functions from upstream.
+download tests/portable/asprintf-t.c tests/lib asprintf-t.c
+download tests/portable/getaddrinfo-t.c tests/lib getaddrinfo-t.c
+download tests/portable/getnameinfo-t.c tests/lib getnameinfo-t.c
+download tests/portable/inet_aton-t.c tests/lib inet_aton-t.c
+download tests/portable/inet_ntoa-t.c tests/lib inet_ntoa-t.c
+download tests/portable/inet_ntop-t.c tests/lib inet_ntop-t.c
+download tests/portable/mkstemp-t.c tests/lib mkstemp-t.c
+download tests/portable/reallocarray-t.c tests/lib reallocarray-t.c
+download tests/portable/setenv-t.c tests/lib setenv-t.c
+download tests/portable/snprintf-t.c tests/lib snprintf-t.c
+
+##  Synchronize test suite files for utility functions from upstream.
+download tests/util/buffer-t.c tests/lib buffer-t.c
+download tests/util/fakewrite.c tests/lib fakewrite.c
+download tests/util/fakewrite.h tests/lib fakewrite.h
+download tests/util/fdflag-t.c tests/lib fdflag-t.c
+download tests/util/messages-t.c tests/lib messages-t.c
+download tests/util/vector-t.c tests/lib vector-t.c
+download tests/util/xmalloc-t tests/lib xmalloc.t
+download tests/util/xmalloc.c tests/lib xmalloc.c
+download tests/util/xwrite-t.c tests/lib xwrite-t.c
+download tests/util/network/addr-ipv4-t.c tests/lib/network addr-ipv4-t.c
+download tests/util/network/addr-ipv6-t.c tests/lib/network addr-ipv6-t.c
+download tests/util/network/client-t.c tests/lib/network client-t.c
+download tests/util/network/server-t.c tests/lib/network server-t.c
+
+##  Synchronize useful utility functions used for the test suite from upstream.
+download tests/tap/messages.c tests/tap messages.c
+download tests/tap/messages.h tests/tap messages.h
+download tests/tap/process.c tests/tap process.c
+download tests/tap/process.h tests/tap process.h
+download tests/tap/string.c tests/tap string.c
+download tests/tap/string.h tests/tap string.h

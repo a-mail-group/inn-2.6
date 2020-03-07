@@ -1,0 +1,224 @@
+#!/bin/sh
+
+##  $Id: getc-tap-harness 10311 2018-12-17 08:04:06Z iulius $
+##
+##  Synchronize INN files maintained in c-tap-harness with upstream.
+##
+##  This script downloads the latest version of the files maintained
+##  in the C TAP Harness package that INN uses for its test driver suite.
+##  These files are available at
+##  <https://www.eyrie.org/~eagle/software/c-tap-harness/>.
+##
+##  Running this script permits keeping up-to-date the INN test driver suite
+##  by automatically fetching the latest version of the upstream files, and
+##  putting them in the expected location in the INN source code.
+##  The name of the files that have been modified since the last run of the
+##  script are written to standard output.  Have a look at the changes and,
+##  if all looks right, commit the changes.
+
+##  URL where the files can be downloaded.
+URL_START="https://git.eyrie.org/?p=devel/c-tap-harness.git;a=blob_plain;hb=HEAD;f="
+
+##  This function downloads the files and copies them to the expected
+##  location in the INN source code, after having performed a few minimal
+##  changes to integrate them in the INN build system.
+##  If a file is not found in upstream or has been modified since the last
+##  run of the script, write it on standard output.
+##
+##  This function expects the following arguments:
+##    $1 - full path of the file to download in the upstream package
+##    $2 - directory where the file should be copied in INN source code
+##    $3 - name of the file in INN source code
+download ()
+{
+  TEMP=$3.tmp
+
+  rm -f ${TEMP}
+  wget -q "${URL_START}$1" -O ${TEMP}
+
+  if [ ! -s "${TEMP}" ]
+  then
+    echo "File $1 does not exist in upstream package"
+  else
+    if [ "$2" = "tests" ] || [ "$2" = "tests/docs" ] || [ "$2" = "tests/tap" ]
+    then
+      # Add the SVN Id keyword at the beginning of source code files,
+      # and update the path of included C header files.
+      # Changes in shell, Perl and C files are not the same.
+      # Also, do not modify the README file.
+      if [ "$3" = "libtap.sh" ]
+      then
+        sed -i -e "1 i \\
+# \$Id\$\\
+#" \
+               ${TEMP}
+      elif [ "$3" = "pod.t" ]
+      then
+        # Apply specific changes to POD checking, so as to best suit
+        # our needs.
+        sed -i -e "3 i \\
+# \$Id\$\\
+#" \
+               -e '5,9d' \
+               ${TEMP}
+        chmod 755 ${TEMP}
+      elif [ "$3" != "README" ]
+      then
+        sed -i -e '1 s/$/ \$Id\$\n */' \
+               -e 's/^#include <tests\/tap\//#include <tap\//g' \
+               ${TEMP}
+      fi
+    fi
+
+    # Specific additions to a few files.
+    if [ "$3" = "basic.c" ]
+    then
+      sed -i -e "58 i \\
+/* Specific to the integration of C TAP Harness in INN. */\\
+#ifndef LIBTEST_NEW_FORMAT\\
+# include \"inn/libinn.h\"\\
+\\
+void\\
+test_init(int count)\\
+{\\
+    plan(count);\\
+}\\
+\\
+void\\
+ok(int n UNUSED, int success)\\
+{\\
+    new_ok(success, NULL);\\
+}\\
+\\
+void\\
+skip(int n UNUSED, const char *reason)\\
+{\\
+#if __GNUC__ > 4\\
+# pragma GCC diagnostic ignored \"-Wformat-nonliteral\"\\
+#endif\\
+    new_skip(reason, NULL);\\
+#if __GNUC__ > 4\\
+# pragma GCC diagnostic warning \"-Wformat-nonliteral\"\\
+#endif\\
+}\\
+\\
+void\\
+ok_block(int n UNUSED, int count, int success)\\
+{\\
+    new_ok_block(count, success, NULL);\\
+}\\
+\\
+void\\
+skip_block(int n UNUSED, int count, const char *reason)\\
+{\\
+#if __GNUC__ > 4\\
+# pragma GCC diagnostic ignored \"-Wformat-nonliteral\"\\
+#endif\\
+    new_skip_block(count, reason, NULL);\\
+#if __GNUC__ > 4\\
+# pragma GCC diagnostic warning \"-Wformat-nonliteral\"\\
+#endif\\
+}\\
+\\
+void\\
+ok_int(int n UNUSED, int wanted, int seen)\\
+{\\
+    is_int(wanted, seen, NULL);\\
+}\\
+\\
+void\\
+ok_string(int n UNUSED, const char *wanted, const char *seen)\\
+{\\
+    is_string(wanted, seen, NULL);\\
+}\\
+#endif\\
+" \
+             -e "154 i \\
+#ifndef INN_LIBINN_H" \
+             -e "188 i \\
+#endif" \
+             -e 's/^ok.int /new_ok(int /g' \
+             -e 's/^skip.const /new_skip(const /g' \
+             -e 's/^ok_block.unsigned /new_ok_block(unsigned /g' \
+             -e 's/^skip_block.unsigned /new_skip_block(unsigned /g' \
+             ${TEMP}
+    fi
+
+    if [ "$3" = "basic.h" ]
+    then
+      sed -i -e "77 i \\
+#ifndef LIBTEST_NEW_FORMAT\\
+/* Specific to the integration of C TAP Harness in INN. */\\
+void ok(int n, int success);\\
+int new_ok(int success, const char *format, ...)\\
+        __attribute__((__format__(printf, 2, 3)));\\
+void ok_int(int n, int wanted, int seen);\\
+void ok_string(int n, const char *wanted, const char *seen);\\
+int okv(int success, const char *format, va_list args)\\
+        __attribute__((__format__(printf, 2, 0)));\\
+void skip(int n, const char *reason);\\
+void new_skip(const char *reason, ...)\\
+        __attribute__((__format__(printf, 1, 2)));\\
+void ok_block(int n, int count, int success);\\
+int new_ok_block(unsigned long count, int success, const char *format, ...)\\
+        __attribute__((__format__(printf, 3, 4)));\\
+void skip_block(int n, int count, const char *reason);\\
+void new_skip_block(unsigned long count, const char *reason, ...)\\
+        __attribute__((__format__(printf, 2, 3)));\\
+\\
+void test_init(int count);\\
+#else\\
+# define ok new_ok\\
+# define skip new_skip\\
+# define ok_block new_ok_block\\
+# define skip_block new_skip_block" \
+             -e "92 i \\
+#endif" \
+             ${TEMP}
+    fi
+
+    if [ "$3" = "float.c" ]
+    then
+      sed -i -e "51 i \\
+#ifndef LIBTEST_NEW_FORMAT\\
+/* Specific to the integration of C TAP Harness in INN. */\\
+void\\
+ok_double(int n UNUSED, double wanted, double seen)\\
+{\\
+    is_double(wanted, seen, 0.01, NULL);\\
+}\\
+#endif\\
+" \
+             ${TEMP}
+    fi
+
+    if [ "$3" = "float.h" ]
+    then
+      sed -i -e "39 i \\
+#ifndef LIBTEST_NEW_FORMAT\\
+/* Specific to the integration of C TAP Harness in INN. */\\
+void ok_double(int n, double wanted, double seen);\\
+#endif" \
+             ${TEMP}
+    fi
+
+    mv -f ${TEMP} ../$2/$3
+    svn status ../$2/$3
+  fi
+}
+
+##  Synchronize the test driver suite from upstream.
+download tests/runtests.c tests runtests.c
+download tests/tap/basic.c tests/tap basic.c
+download tests/tap/basic.h tests/tap basic.h
+download tests/tap/float.c tests/tap float.c
+download tests/tap/float.h tests/tap float.h
+download tests/tap/libtap.sh tests/tap libtap.sh
+download tests/tap/macros.h tests/tap macros.h
+
+##  Synchronize the POD checker test suite.
+##  Disabled since Test::RRA became a dependency.
+#download tests/docs/pod-t tests/docs pod.t
+
+##  Synchronize the README file from upstream.
+download docs/writing-tests tests README

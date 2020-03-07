@@ -1,0 +1,42 @@
+=head1 NAME
+
+motd.news - Message of the day information for feeders or readers
+
+=head1 DESCRIPTION
+
+Two files, found in I<pathetc>, contain local information for news feeders or
+news readers in a free-form format.  The entire files are returned verbatim
+to any client that issues the LIST MOTD command.  This might be used for
+new information, notification of upcoming downtime, or similar purposes.
+
+These files are named F<motd.innd> (for news feeders) and F<motd.nnrpd>
+(for news readers); they are used by B<innd> and B<nnrpd>, respectively.
+
+Make sure that these files are encoded in UTF-8.  They should also be
+"dot-stuffed", that is to say that a line beginning with a dot should have
+that dot doubled.
+
+Be aware that use of the LIST MOTD command is not widespread (though
+documented in S<RFC 6048>) and most news clients will never ask for
+this file.
+
+If one or both of these files are missing, it is not an error.  The server
+will just send the client the appropriate response for an unmaintained
+F<motd.innd> or F<motd.nnrpd> file.
+
+On a fresh INN install, samples for these files are installed
+in I<pathec>; you will therefore find in F<motd.innd.sample> and
+F<motd.nnrpd.sample> a few examples of messages that can be communicated
+to news clients.
+
+=head1 HISTORY
+
+Rewritten in POD by Russ Allbery <eagle@eyrie.org> for InterNetNews.
+
+$Id: motd.news.pod 9767 2014-12-07 21:13:43Z iulius $
+
+=head1 SEE ALSO
+
+inn.conf(5).
+
+=cut

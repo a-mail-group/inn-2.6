@@ -1,0 +1,113 @@
+=head1 NAME
+
+getlist - Get a list from an NNTP server
+
+=head1 SYNOPSIS
+
+B<getlist> [B<-AR>] [B<-h> I<host>] [B<-p> I<port>]
+[I<list> [I<pattern> [I<types>]]]
+
+=head1 DESCRIPTION
+
+B<getlist> obtains a list from an NNTP server and sends it to standard
+output.  I<list> may be one of C<active> (which is the default value),
+C<active.times>, C<distrib.pats>, or C<newsgroups>.  C<active> contains
+a list of all newsgroups carried by the server with the high and low article
+numbers in the group, and the group status field.  C<active.times> is a list of
+newsgroups, their creation times (in seconds since epoch), and the creator
+of the group.  C<distrib.pats> is a list of relevant distributions and
+the newsgroups they apply to.  C<newsgroups> is a list of newsgroups
+along with their short descriptions.
+
+For more information on the formats of these files, see active(5),
+active.times(5), distrib.pats(5) and newsgroups(5).
+
+The listing files other than the F<active> file are common extensions to the
+NNTP protocol and may not be available on all servers.  For instance, C<counts>
+C<distributions>, C<headers>, C<moderators>, C<motd>, C<overview.fmt> and
+C<subscriptions>, amongst other, may be available.  Moreover, a uwildmat(3)
+pattern I<pattern> may also be usable for some of these listing files.
+
+For more information on the formats of these files, see distributions(5),
+moderators(5), motd.news(5) and subscriptions(5).  The overview fields
+obtained with C<overview.fmt> are the ones for which the overview database
+is consistent (see I<extraoverviewadvertised> in F<inn.conf> for more
+information).  The list obtained with C<headers> contains the fields
+that can be retrieved using the HDR command (I<pattern> can then be
+either C<msgid> or C<range>).  The list obtained with C<counts> is like
+the C<active> one except that the number of articles in a newsgroup
+is mentioned just before the flag of this newsgroup.
+
+The I<pattern> parameter may be used with a I<list> value of C<active>,
+C<active.times> or C<newsgroups> to limit the output.  If given, only
+entries corresponding to newsgroups that match the uwildmat(3) pattern
+I<pattern> will be printed.
+
+If the I<list> parameter is C<active>, a third parameter, I<types>, may
+also be used to restrict the list.  If given, only entries corresponding
+to newsgroups with a newsgroup mode found in I<types> will be printed.
+For example, a I<types> value of C<y> would only show unmoderated groups,
+and a I<types> value of C<ym> would show all unmoderated and moderated
+groups but not aliased groups or groups that disallow postings.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-A>
+
+Try to authenticate using the username and password information in
+passwd.nntp(5) before issuing the LIST command.
+
+=item B<-h> I<host>
+
+Connect to the server I<host> rather than to the value of I<server> in
+F<inn.conf> or the value of the NNTPSERVER environment variable.
+
+=item B<-p> I<port>
+
+Connect to the port I<port>, which is by default C<119>.
+
+=item B<-R>
+
+Try to switch to B<nnrpd> with a MODE READER command before issuing the
+LIST request.  It can be useful in case a feeding access exists for
+the news server:  more information can be retrieved from B<nnrpd>,
+compared with B<innd>.
+
+=back
+
+=head1 EXAMPLES
+
+The following command will obtain the one-line descriptions of all
+newsgroups found on UUNET:
+
+    getlist -h news.uu.net newsgroups
+
+The following command will show the active file entries for all moderated
+comp.* groups on the default server:
+
+    getlist active 'comp.*' m
+
+The following command lists all groups where local postings are permitted,
+are moderated or aliased:
+
+    getlist active '*' ym=
+
+Note that the wildcard character C<*> has to be quoted by simple quotes
+to protect it from the shell.
+
+=head1 HISTORY
+
+Written by Landon Curt Noll <chongo@toad.com> for InterNetNews.  Rewritten
+in POD by Russ Allbery <eagle@eyrie.org>.
+
+$Id: getlist.pod 9767 2014-12-07 21:13:43Z iulius $
+
+=head1 SEE ALSO
+
+active(5), active.times(5), distrib.pats(5), distributions(5), inn.conf(5),
+moderators(5), motd.news(5), newsgroups(5), nnrpd(8), passwd.nntp(5),
+subscriptions(5), uwildmat(3).
+
+=cut

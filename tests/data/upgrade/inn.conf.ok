@@ -1,0 +1,23 @@
+#maxartsize:
+    mta:	"/usr/lib/sendmail -oi -oem %s"
+
+incominglogfrequency:	200
+addinjectiondate:   true
+addinjectionpostinghost:   false
+listvalue:      [ one two three ]
+
+# testing comment
+
+# Added by innupgrade.
+hismethod: hisv6
+
+# Moved from overview.fmt by innupgrade.
+extraoverviewadvertised: [ Path Keywords Injection-Info ]
+
+# Moved from sasl.conf by innupgrade.
+tlscafile:		/usr/local/news/etc/ca.cert
+tlscapath:		/usr/local/news/etc/cas
+
+# Our local certificate.
+tlscertfile:		/usr/local/news/etc/our.cert
+tlskeyfile:		/usr/local/news/etc/our.key

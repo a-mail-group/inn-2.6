@@ -1,0 +1,391 @@
+#! /usr/bin/perl -w
+# fixscript will replace this line with code to load INN::Config
+
+##############################################################################
+# send-uucp.pl	create and send UUCP news batches from the outgoing files
+#
+# Author:	Edvard Tuinder <ed@elm.net>
+#
+# Copyright (C) 1994 Edvard Tuinder - ELM Consultancy B.V.
+# Copyright (C) 1995-1997 Miquel van Smoorenburg - Cistron Internet Services
+#
+# Copyright (C) 2003 Marco d'Itri <md@linux.it>
+#   Nearly rewritten. Added syslog support, real errors checking and more.
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation; either version 2 of the License, or (at your option)
+# any later version.
+##############################################################################
+
+use strict;
+use INN::Utils::Shlock;
+
+# for compatibility with earlier versions of INN
+$INN::Config::pathetc ||= '/etc/news';
+$INN::Config::syslog_facility ||= 'news';
+$INN::Config::uux ||= 'uux';
+
+# some default values
+my $MAXSIZE = 500000;
+my $MAXJOBS = 200;
+
+my %UNBATCHER = (
+    compress    => 'cunbatch',
+    bzip2       => 'bunbatch',
+    gzip        => 'gunbatch',
+);
+
+my $UUX_FLAGS = '- -z -r -gd';
+my $BATCHER_FLAGS = '';
+
+##############################################################################
+my $config_file = $INN::Config::pathetc . '/send-uucp.cf';
+my $lockfile = $INN::Config::locks . '/LOCK.send-uucp';
+
+END {
+    # In case we bail out, while holding a lock.
+    INN::Utils::Shlock::releaselocks();
+}
+
+my $use_syslog = 0;
+
+eval { require Sys::Syslog; import Sys::Syslog; $use_syslog = 1; };
+
+if ($use_syslog) {
+    if ($Sys::Syslog::VERSION lt 0.15) {
+        eval "sub Sys::Syslog::_PATH_LOG { '/dev/log' }" if $^O eq 'dec_osf';
+        Sys::Syslog::setlogsock('unix') if $^O =~ /linux|dec_osf|freebsd|darwin/;
+    }
+    openlog('send-uucp', 'pid', $INN::Config::syslog_facility);
+}
+
+my @sitelist;
+if (@ARGV) {
+    foreach my $site (@ARGV) {
+        my @cfg = read_cf($config_file, $site);
+        if (not @cfg) {
+            logmsg("site $site not found in the configuration", 'err');
+            next;
+        }
+        push @sitelist, @cfg;
+    }
+} else {
+    @sitelist = read_cf($config_file, undef);
+}
+
+if (not @sitelist) {
+    logmsg('nothing to do', 'debug');
+    exit 0;
+}
+
+chdir $INN::Config::batch or logdie("Can't access $INN::Config::batch: $!", 'crit');
+
+# Acquire a lock.
+INN::Utils::Shlock::lock($lockfile, 60) or logdie("cannot create lockfile $lockfile");
+
+run_site($_) foreach @sitelist;
+
+# Unlock.
+INN::Utils::Shlock::unlock($lockfile) or logdie("cannot unlock $lockfile");
+
+exit 0;
+
+##############################################################################
+sub read_cf {
+    my ($conf_file, $site_wanted) = @_;
+
+    my $hour = (localtime time)[2];
+
+    my @sites;
+    open(CF, $conf_file) or logdie("cannot open $conf_file: $!", 'crit');
+    while (<CF>) {
+        chop;
+        s/\s*\#.*$//;
+        next if /^$/;
+
+        my ($sitespec, $compress, $size, $time) = split(/\s+/);
+        next if not $sitespec;
+
+        my ($site, $host, $funnel) = split(/:/, $sitespec);
+        $host = $site if not $host;
+        $funnel = $site if not $funnel;
+
+        $compress =~ s/_/ /g if $compress;
+
+        if ($site_wanted) {
+            if ($site eq $site_wanted) {
+                push @sites, [$site, $host, $funnel, $compress, $size];
+                last;
+            }
+            next;
+        }
+
+        if ($time) {
+            foreach my $time (split(/,/, $time)) {
+                next if $time != $hour;
+                push @sites, [$site, $host, $funnel, $compress, $size];
+            }
+        } else {
+            push @sites, [$site, $host, $funnel, $compress, $size];
+        }
+    }
+    close CF;
+    return @sites;
+}
+
+##############################################################################
+# count number of jobs in the UUCP queue for a given site
+sub count_jobs {
+    my ($site) = @_;
+
+    return 0 if not $INN::Config::uustat;
+    open(JOBS, "$INN::Config::uustat -s $site 2> /dev/null |") or logdie("cannot fork: $!");
+    my $count = grep(/ Executing rnews /, <JOBS>);
+    close JOBS;                    # ignore errors, uustat may fail
+    return $count;
+}
+
+# select the rnews label appropriate for the compressor program used
+sub unbatcher {
+    my ($compressor) = @_;
+
+    $compressor =~ s%.*/%%;   # Do not keep the complete path.
+    $compressor =~ s% .*%%;   # Do not keep the optional parameters.
+    return $UNBATCHER{$compressor} || $UNBATCHER{'gzip'};
+}
+
+##############################################################################
+# batch articles for one site
+sub run_site {
+    my ($cfg) = @_;
+    my ($site, $host, $funnel, $compress, $size) = @$cfg;
+
+    logmsg("checking site $site", 'debug');
+    my $maxjobs = '';
+    if ($MAXJOBS) {
+        my $jobs = count_jobs($site);
+        if ($jobs >= $MAXJOBS) {
+            logmsg("too many jobs queued for $site");
+            return;
+        }
+        $maxjobs = '-N ' . ($MAXJOBS - $jobs);
+    }
+
+    $compress ||= $INN::Config::gzip;
+    $size ||= $MAXSIZE;
+
+    # if a .work temp file left by a previous invocation exists, rename
+    # it to .work.tmp, we'll append it to the current batch file once it
+    # has been renamed and flushed.
+    if (-f "$site.work") {
+        rename("$site.work", "$site.work.tmp")
+            or logdie("cannot rename $site.work: $!", 'crit');
+    }
+
+    if (not -f $site and not -f "$site.work.tmp") {
+        logmsg("no batch file for site $site", 'err');
+        return;
+    }
+
+    rename($site, "$site.work") or logdie("cannot rename $site: $!", 'crit');
+    logmsg("Flushing $funnel for site $site", 'debug');
+    ctlinnd('-t120', 'flush', $funnel);
+
+    # append the old .work temp file to the current batch file if needed
+    if (-f "$site.work.tmp") {
+        my $err = '';
+        open(OUT, ">>$site.work")
+            or logdie("cannot open $site.work: $!", 'crit');
+        open(IN, "$site.work.tmp")
+            or logdie("cannot open $site.work.tmp: $!", 'crit');
+        print OUT while <IN>;
+        close IN;
+        close OUT or logdie("cannot close $site.work: $!");;
+        unlink "$site.work.tmp"
+            or logmsg("cannot delete $site.work.tmp: $!", 'err');
+    }
+
+    if (not -s "$site.work") {
+        logmsg("no articles for $site", 'debug');
+        unlink "$site.work" or logmsg("cannot delete $site.work: $!", 'err');
+    } else {
+        if ($compress eq 'none') {
+            system "$INN::Config::newsbin/batcher -b $size $maxjobs $BATCHER_FLAGS "
+                . "-p\"$INN::Config::uux $UUX_FLAGS %s!rnews\" $host $site.work";
+        } else {
+            system "$INN::Config::newsbin/batcher -b $size $maxjobs $BATCHER_FLAGS "
+                . "-p\"{ echo '#! " . unbatcher($compress)
+                . "' ; exec $compress; } | "
+                . "$INN::Config::uux $UUX_FLAGS %s!rnews\" $host $site.work";
+        }
+        logmsg("batched articles for $site", 'debug');
+    }
+}
+
+##############################################################################
+sub logmsg {
+    my ($msg, $lvl) = @_;
+
+    syslog($lvl || 'notice', '%s', $msg) if ($use_syslog);
+}
+
+sub logdie {
+    my ($msg, $lvl) = @_;
+
+    logmsg($msg, $lvl || 'err');
+
+    # Unlock.
+    INN::Utils::Shlock::unlock($lockfile);
+    exit 1;
+}
+
+sub ctlinnd {
+    my ($cmd, @args) = @_;
+
+    my $st = system("$INN::Config::newsbin/ctlinnd", '-s', $cmd, @args);
+    logdie('Cannot run ctlinnd: ' . $!) if $st == -1;
+    logdie('ctlinnd returned status ' . ($st & 255)) if $st > 0;
+}
+
+__END__
+
+=head1 NAME
+
+send-uucp - Send Usenet articles via UUCP
+
+=head1 SYNOPSIS
+
+B<send-uucp> [I<site> ...]
+
+=head1 DESCRIPTION
+
+The B<send-uucp> program processes batch files written by innd(8) to send
+Usenet articles to UUCP sites.  It reads a configuration file to control how
+it behaves with various sites.  Normally, it is run periodically out of cron
+to put together batches and send them to remote UUCP sites.
+
+It makes it possible to reduce bandwidth usage and to send news to remote
+UUCP sites which cannot receive a real-time feed (for instance if they
+are over dial-up connections).
+
+=head1 OPTIONS
+
+Any arguments provided to the program are interpreted as a list of sites
+specified in F<send-uucp.cf> for which batches should be generated.  If no
+arguments are supplied then batches will be generated for all sites listed
+in that configuration file.
+
+=head1 CONFIGURATION
+
+The sites to which articles are to be sent must be configured in the
+configuration file F<send-uucp.cf> in I<pathetc> as set in F<inn.conf>.  Each
+site is specified with a line of the form:
+
+    site[:host[:funnel]] [compressor [maxsize [batchtime]]]
+
+=over 4
+
+=item I<site>
+
+The news site name being configured.  This must match a site name 
+from newsfeeds(5).
+
+=item I<host>
+
+The UUCP host name to which batches should be sent for this site.
+If omitted, the news site name will be used as the UUCP host name.
+
+=item I<funnel>
+
+In the case of a site configured as a funnel, B<send-uucp> needs to flush
+the channel (or exploder) being used as the target of the funnel instead of
+flushing the site.  This is the way to tell B<send-uucp> the name of the
+channel or exploder to flush for this site.  If not specified, default to
+flushing the site.
+
+=item I<compressor>
+
+The compression method to use for batches.  This should be one of C<bzip2>,
+C<compress>, C<gzip> or C<none>.  Arguments for the compression command may be
+specified by using C<_> instead of spaces.  For example, C<gzip_-9>.
+The default value is C<gzip>.
+
+=item I<maxsize>
+
+The maximum size in bytes of a single batch I<before> compression.  The default
+value is C<500000> bytes.
+
+=item I<batchtime>
+
+A comma separated list of hours during which batches should be generated for
+a given site.  When B<send-uucp> runs, a site will only be processed if the
+current hour matches one of the hours in I<batchtime>.  The default is no
+limitation on when to generate batches.
+
+=back
+
+Fields are separated by spaces and only the site name needs to be specified,
+with defaults being used for unspecified values.  If the first character on
+a line is a hash sign (C<#>) then the rest of the line is ignored.
+
+=head1 EXAMPLE
+
+Here is an example for the F<send-uucp.cf> configuration file:
+
+    zoetermeer      gzip            1048576         5,18,22
+    hoofddorp       gzip            1048576         5,18,22
+    pa3ebv          gzip            1048576         5,18,22
+    drinkel         bzip2           1048576         5,6,18,20,22,0,2
+    manhole         compress        1048576         5,18,22
+    owl             compress        1048576
+    able
+    pern::MYFUNNEL!
+
+This defines eight UUCP sites.  The first three and the last two use C<gzip>
+compression, the fourth site (C<drinkel>) uses C<bzip2> and the remaining sites
+(C<manhole> and C<owl>) use C<compress>.  The first six use a batch size of
+S<1 MB>, and the two last sites (C<able> and C<pern>) use the default of
+500,000 bytes.  The C<zoetermeer>, C<hoofddorp>, C<pa3ebv>, and C<manhole> sites
+will only have batches generated for them during the hours of 05:00, 18:00,
+and 22:00, and the C<drinkel> site will only have batches generated during those
+hours and 06:00, 20:00, 00:00, and 02:00.  There are no restrictions on when
+batches will be generated for C<owl>, C<able> and C<pern>.
+
+The C<pern> site is configured as a funnel into C<MYFUNNEL!>.  B<send-uucp> will
+issue C<ctlinnd flush MYFUNNEL!> instead of C<ctlinnd flush pern>.
+
+As for the F<newsfeeds> file, the usual flags used for a UUCP feed are
+C<Tf,Wnb>.  Here is a typical entry for C<zoetermeer>, where the batching
+is kept between S<4 KB> and S<1 KB>:
+
+    zoetermeer\
+        :*,!junk,!control,!control.*/!foo\
+        :Tf,Wnb,B4096/1024:
+
+=head1 FILES
+
+=over 4
+
+=item I<pathbin>/send-uucp
+
+The Perl script itself used to create news batches from the outgoing files.
+
+=item I<pathetc>/send-uucp.cf
+
+The configuration file which specifies a list of sites to be processed.
+
+=back
+
+=head1 HISTORY
+
+This program was originally written by Edvard Tuinder <ed@elm.net> and then
+maintained and extended by Miquel van Smoorenburg <miquels@cistron.nl>.
+Marco d'Itri <md@linux.it> cleaned up the code for inclusion in INN.  This
+manual page was written by Mark Brown <broonie@sirena.org.uk>.
+
+=head1 SEE ALSO
+
+innd(8), newsfeeds(5), uucp(8).
+
+=cut

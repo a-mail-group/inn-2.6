@@ -1,0 +1,281 @@
+The following is a list of the people (in roughly chronological order)
+who've helped out.  If anyone's name has been left out (probably), or if
+something has been incorrectly attributed to you (ditto), please let us
+know.
+
+Rich Salz:
+        Designed and wrote most of it.
+
+Bob Halley:
+        Did the TCL extension.
+
+Christophe Wolfhugel:
+        Did the Perl extension and provided several other fixes.
+
+Doug Needham:
+        Made nnrpd spool if innd is unavailable.  Made nnrpd handle the
+        LIST SUBSCRIPTIONS command.  Added the rebuilding of control
+        connections to innd (SIGUSR1).  Got inews to ask the nntp peer for
+        moderator info instead of digging it out of a local file.
+
+David Lawrence: 
+        Did the hooks for PGP verificiation of control messages, added
+        actived support for syncing against an active file obtained via
+        ftp.
+
+John Stapleton:
+        Wrote the poison newsgroup code ('@') for newsfeeds(5).  Wrote the
+        too-many-connects support ('-X -H -T' flags to innd).
+        
+Landon Curt Noll:
+        Wrote or co-wrote actsync, nntpsend, shrinkfile, innstat,
+        news.daily, tally.control and various man pages.  He also was the
+        person originally behind the site directory
+        configuration/installation process.
+
+John Levine:
+        Wrote the '-e' support for expire (expire on shortest time).
+
+Matthias Urlichs:
+        Made rnews recognise gzip compression.  Made newsfeeds(5) take the
+        'Wp' flag.
+
+Stefan Petri:
+        Did the original XBATCH support.
+
+Russel Street:
+        Did more XBATCH support.
+
+Alan Barrett:
+        Did the work-limiter in the select loop to stop streaming from
+        killing performance.
+
+Greg Patten:
+        Wrote the perl innlog.
+
+Clayton O'Neill:
+        Wrote the articles storage API and implemented the timehash
+        and regular storage mechanisms with it.  He made significant
+        modifications to dbz.  Integrating innfeed, adding Xref slaving,
+        the history cache, the WIP rewrite and various speedups were
+        also his doing.  Provided the tradindexed overview mechanism.
+        Implemented the 'O' flag in newsfeeds.  Did a bunch of early work
+        on the CVS repository, reorganization of the code, and committing
+        patches from others.
+
+Vincent Archer:
+        Wrote the initial autoconf scripts.
+
+Forrest J. Cavalier III:
+        Provided a lot of bug fixes to 1.5.2.  He extended the autoconf
+        setup a lot to work with version 2.0, and has provided a lot of
+        valuable design input and testing.
+
+Scott Fritchie:
+        Wrote the CNFS storage back-end.
+
+Fabien Tassin:
+        Wrote the innreport package.  Implemented the new incoming.conf
+        configuration file.  Added support for nested profile timers.
+
+Jeremy Nixon:
+        Wrote the initial patch for Perl filtering of message-IDs on IHAVE
+        or CHECK and other patches related to the filtering code.
+
+Karl Kleinpaste:
+        Wrote the experimental code for automatically generating keywords
+        from incoming articles and putting those keywords in the overview
+        for the use of readers.
+
+Dave Hayes:
+        Along with some bugfixes, Dave wrote the posting-backoff code for 
+        nnrpd and the patches to the perl hooks to make the headers
+        modifiable.
+
+Joe Greco:
+        Wrote the code for measuring the timing of various parts of innd
+        and the original actived code.
+
+Sang-yong Suh:
+        Provided the fuzzy offset technique to dbz.
+
+Katsuhiro Kondou:
+        Provided unified overview, the buffindexed overview method, trash
+        storage method, spool translation method, traditional expire
+        policy for articles stored through storage API and expireindex, as
+        well as hundreds of fixes to clean up defects as changes were
+        made.  Did a large amount of man page documentation and clean up.
+        Has also been a major force in the CVS pool maintenace.
+
+Russell Vincent:
+        Expanded inn.conf to make many of the old compile time options
+        into run time variables.  Numerous bug fixes, small feature
+        enhancements and man updates.
+
+Darrell Fuhriman:
+        Provided various bug fixes and contributed to the pre-SM CNFS
+        development.
+
+Steve Carrie:
+        Modified nnrpd to allow detailed client tracking, added the '-R'
+        flag to nnrpd.
+
+Ed Mooring:
+        Wrote the first Perl filter callbacks into INN.
+
+Aidan Cully:
+        Provided the patches to support the new readers.conf file, and
+        wrote the initial user authenticators and resolvers for the
+        readers.conf.  Provided the patches to support the new
+        storage.conf format.  Added the option to store articles based on
+        the Expires header.  Also added the '@' article exclusion code to
+        incoming.conf.
+
+Andrew Gierth:
+        Contributed improvements to the nnrpd Perl filtering support to
+        give access to message bodies and support the DROP and SPOOL
+        keywords in filter returns.
+
+Russ Allbery:
+        Has done large amounts of clean-up on various pieces of the system
+        (especially the documentation and build system), and has helped
+        with the CVS pool maintenance.  Improved the speed and portability
+        of the Perl filter.  Rewrote the tradindexed overview method for
+        additional robustness.  Has done extensive work on libinn,
+        breaking out common code from other parts of INN.  Lots of other
+        fixes to various parts of INN.
+
+Kai Henningsen:
+        Implemented the 'C' and 'U' flags in newsfeeds.
+
+Julio Sanchez:
+        Wrote the initial libtool support for INN.
+
+Igor Timkin:
+        Added min-queue-connection support to innfeed, added outgoing
+        volume logging and reporting, and provided a variety of bug
+        fixes.
+
+Heath Kehoe:
+        Various portability and bug fixes, wrote the ovdb overview
+        mechanism that uses Berkeley DB.
+
+Richard Todd:
+        Implemented the timecaf and tradspool storage mechanisms, as well
+        as many bug fixes and other contributions.
+
+Brian Kantor:
+        Wrote the news2mail gateway.
+
+Ilya Etingof:
+        Added Python authentication support for nnrpd.
+
+Kenichi OKADA:
+        Added preliminary SSL and SASL support for nnrpd.
+
+Olaf Titz:
+        Implemented MODE CANCEL support, as well as other patches and bug
+        fixes.
+
+Sven Paulus:
+        Wrote the support for variables in newsfeeds, contributed various
+        other patches and bug fixes.
+
+Krischan Jodies:
+        Wrote the SMB authenticator.
+
+Alex Kiernan:
+        Wrote the history API, generalized the timer code in innd and
+        innfeed into a generic timer library, reworked the NEWNEWS code
+	and added a history cache, and contributed various other bug fixes.
+
+Marco d'Itri:
+        Wrote gpgverify and overhauled controlchan and its modules.  Added
+        IPv6 support to innd and inndstart.  Contributed a rewritten
+        send-uucp.  Has also contributed a variety of bug fixes and helped
+        with testing.
+
+Jeffrey M. Vinocur:
+        Broke parts of the interface with nnrpd for authentication programs
+        into a separate library, added various features to readers.conf,
+        and wrote various other fixes and feature improvements,
+        particularly to nnrpd.
+
+Erik Klavon:
+        Significantly reworked nnrpd Perl and Python hooks to be more useful
+        in combination with the readers.conf mechanism.
+
+Nathan Lutchansky:
+        Added IPv6 support to innfeed, nnrpd, and supporting programs.
+
+Ken Murchison:
+	Implemented SASL authentication support for nnrpd.
+
+Also:
+
+Dave Barr:
+        Kept INN alive after Rich Salz didn't have the time any more but 
+        before ISC took over.  He released 4 unofficial versions that 
+        provided a good boost to what ISC started with.  Minor work
+        on 2.0, mostly with example files and minor code tweaks.
+
+James Brister:
+        The chief maintainer of INN from when ISC took over
+        maintenance through the 2.2 release, James is also the original
+        author of innfeed and has made fixes, improvements, and feature
+        additions all over the code.
+
+Marc Fournier:
+        Provided various bug fixes and did a lot of work integrating other
+        peoples patches and looking after the CVS pool.  Helped
+        significantly with the conversion to autoconf.  Added the ability
+        to set connection limits on a per-host basis.
+
+Joshua M. Thompson:
+        Wrote the original INSTALL documentation.
+
+The following people helped above and beyond the call of duty with testing
+(provided patches, bug reports, suggestions, documentation improvements,
+and lobbying):
+
+Paul Vixie, Robert Elz, Evan Champion, Robert Keller, Barry Bouwsma,
+markd@mira.net.au, Ollivier Robert, Kevin Jameson, Heiko W. Rupp,
+Fletcher Mattox, Matus Uhlar, Gabor Kiss, Matthias Scheler,
+Richard Michael Todd, Trevor Riley, Alex Bligh, J. Porter Clark,
+Alan Brown, Bert Hyman, Petter Nilsen, Gary E. Miller, Kim Culhan,
+Marc Baudoin, Neal Becker, Bjorn Knutsson, Stephen Marquard,
+Frederick Korz, Benedict Lofstedt, Dan Ellis, Joe Ramey,
+Odd Einar Aurbakken, Jon Lewis, Dan Riley, Peter Eriksson, Ken Lalonde,
+Koichi Mouri, J. Richard Sladkey, Trine Krogstad, Holger Burbach,
+Per Hedeland, Larry Rosenman, Andrew Burgess, Michael Brunnbauer,
+Mohan Kokal, Robert R. Collier, Mark Hittinger, Miquel van Smoorenburg,
+Boyd Lynn Gerber, Yury B. Razbegin, Joe St. Sauver, Heiko Schlichting,
+John P. Speno, Scott Gifford, Steve Parr, Robert Kiessling,
+Francis Swasey, Paul Tomblin, Florian La Roche, Curt Welch,
+Thomas Mike Michlmayr, Kizu Takashi, Michael Hall, Jeff King,
+Edward S. Marshall, Michael Schroeder, George Lindholm, Don Lewis,
+Christopher Masto, Hiroaki Sengoku, Yury July, Yar Tikhiy, Kees Bakker,
+Peter da Silva, Matt McLeod, Ed Korthof, Jan Rychter, Winfried Magerl,
+Andreas Lamrecht, Duane Currie, Ian Dickinson, Bettina Fink, Todd Olson,
+Jochen Erwied, Rebecca Ore, Felicia Neff, Ben Rosengart, Antonio Querubin,
+Bear Giles, Ian Hastie, Greg Andruk, Frank Copeland, Andrew Stribblehill,
+Erik Mouritzen, Ernst Boetsch, Piotr Meyer, David Canzi, Brandon Hume,
+Christopher P. Lindsey, Winfried Szukalski, Edvard Tuinder, Viktor Pilpenok,
+Frank McConnell, Ilya A. Kovalenko, Steve Youngs, Jacek Konieczny,
+Ilya Voronin, Sergey Babitch, Watanabe Katsuhiro, Fred Senault,
+Chris Caputo, Thomas Parleman, Adam J. Richter, Jim Dutton, Julien Elie,
+Ray Miller, Andreas M. Kirchwitz, Andrey Yakovlev, Christoph Biedl,
+Kai Gallasch, Ollivier Robert, Ivan Shmakov, Kachun Lee, Kirill Berezin,
+Dieter Stussy, Alan Schwartz, Shalon Wood, Nick Couchman, Jakub Bogusz,
+J. Thomas Halliley, Matija Nalis, Geraint A. Edwards, Alexander Bartolich,
+David Hlacik, Andreas Mattheiss, James Ralston, Wim Lewis, Johan van Selst,
+Wolfgang M. Weyand, Berend Reitsma, William Kronert, Petr Novopashenniy,
+Steve Crook, John F. Morse, Tim Woodall, Jonathan Kamens, Kamil Jonca,
+S.P. Zeidler, Nix, Florian Schlichting, Torsten Jerzembeck, Harald Dunkel,
+Lars Magne Ingebrigtsen, Sam Varshavchik, Matthew Vernon, Ian Jackson,
+Edmund H. Ramm, Raphael Barrois, Bo Lindbergh, Matthias Meyser,
+Dennis Preiser, Paolo Amoroso, Dennis Davis, River Tarnell, Jochen Schmitt,
+Tim Fardell, Remco Rijnders, David Binderman, Tony Evans, Christian Garbs,
+Jesse Rehmer, Colin Watson, Lauri Tirkkonen, Christian Mock, Marcus Jodorf,
+Richard Kettlewell, Yuriy M. Kaminskiy, Bill Parker, Thomas Hochstein,
+Tanguy Ortolo

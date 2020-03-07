@@ -1,0 +1,135 @@
+#! /bin/sh
+##  $Id: innshellvars.in 10245 2018-02-16 21:11:59Z iulius $
+##  Set up any and all shell variables that an INN shell script
+##  might need.  Also sets umask.
+
+##  NOTE:  When adding stuff here, add the corresponding variables to 
+##  innshellvars.tcl and the INN::Config Perl module (as well as the
+##  old innshellvars.pl script).
+
+LC_CTYPE=C; export LC_CTYPE
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+eval `@bindir@/innconfval -s`
+
+NEWSHOME=${PATHNEWS}
+SPOOLDIR=${PATHSPOOL}
+MOST_LOGS=${PATHLOG}
+export NEWSHOME SPOOLDIR MOST_LOGS
+
+NEWSBIN=${PATHBIN}
+NEWSETC=${PATHETC}
+NEWSLIB=@libdir@
+INNDDIR=${PATHRUN}
+LOCKS=${PATHRUN}
+export NEWSBIN NEWSETC NEWSLIB INNDDIR LOCKS
+
+ERRLOG=${MOST_LOGS}/errlog
+LOG=${MOST_LOGS}/news
+
+ARCHIVEDIR=${PATHARCHIVE}
+SPOOL=${PATHARTICLES}
+BATCH=${PATHOUTGOING}
+INCOMING=${PATHINCOMING}
+OVERVIEWDIR=${PATHOVERVIEW}
+SPOOLNEWS=${PATHINCOMING}
+BADNEWS=${PATHINCOMING}/bad
+
+ACTIVE=${PATHDB}/active
+ACTIVETIMES=${PATHDB}/active.times
+CTLFILE=${NEWSETC}/control.ctl
+CTLWATCH=${NEWSETC}/innwatch.ctl
+HISTORY=${PATHDB}/history
+NEWACTIVE=${PATHDB}/active.tmp
+NEWSFEEDS=${NEWSETC}/newsfeeds
+NEWSGROUPS=${PATHDB}/newsgroups
+OLDACTIVE=${PATHDB}/active.old
+PATH_MOTD_INND=${NEWSETC}/motd.innd
+PATH_MOTD_NNRPD=${NEWSETC}/motd.nnrpd
+PATH_MOTD=${PATH_MOTD_NNRPD}
+EXPIRECTL=${NEWSETC}/expire.ctl
+LOCALGROUPS=${NEWSETC}/localgroups
+
+CONTROLPROGS=${PATHCONTROL}
+INNCONFVAL=${NEWSBIN}/innconfval
+INND=${NEWSBIN}/innd
+INNWATCH=${NEWSBIN}/innwatch
+INEWS=${NEWSBIN}/inews
+RNEWS=${NEWSBIN}/rnews
+PERL_STARTUP_INND=${PATHFILTER}/startup_innd.pl
+PERL_FILTER_INND=${PATHFILTER}/filter_innd.pl
+PERL_FILTER_NNRPD=${PATHFILTER}/filter_nnrpd.pl
+PYTHON_FILTER_INND=${PATHFILTER}/filter_innd.py
+PATH_PYTHON_INN_MODULE=${PATHFILTER}/INN.py
+PATH_TCL_STARTUP=${PATHFILTER}/startup.tcl
+PATH_TCL_FILTER=${PATHFILTER}/filter.tcl
+
+DAILY=${LOCKS}/LOCK.news.daily
+
+NEWSCONTROL=${INNDDIR}/control
+NNTPCONNECT=${INNDDIR}/nntpin
+SERVERPID=${INNDDIR}/innd.pid
+INNWSTATUS=${INNDDIR}/innwatch.status
+WATCHPID=${INNDDIR}/innwatch.pid
+
+AWK='@AWK@'
+SED='@SED@'
+INNDF=${NEWSBIN}/inndf
+EGREP='@EGREP@'
+PERL='@PERL@'
+GPGV='@GPGV@'
+GPG='@GPG@'
+PGP='@PGP@'
+SORT='@SORT@'
+GETFTP="@PATH_GETFTP@"
+UUSTAT='@UUSTAT@'
+UUX='@UUX@'
+
+BZIP2='@BZIP2@'
+COMPRESS='@COMPRESS@'
+GZIP='@GZIP@'
+UNCOMPRESS='@UNCOMPRESS@'
+LOG_COMPRESS='@LOG_COMPRESS@'
+Z='@LOG_COMPRESSEXT@'
+
+if [ "$OVMETHOD" = "ovdb" ]; then
+    DB_HOME="${PATHOVERVIEW}"
+    export DB_HOME
+fi
+
+TEMPSOCK=`basename ${INNDDIR}/ctlinndXXXXXX | ${SED} -e 's/XXXXXX$/*/'`
+TEMPSOCKDIR=`echo ${INNDDIR}/ctlinndXXXXXX | ${SED} -e 's@/[^/]*$@@'`
+
+NEWSMASTER=@NEWSMASTER@
+NEWSUSER=${RUNASUSER}
+NEWSGROUP=${RUNASGROUP}
+
+FILEMODE=@FILEMODE@
+INEWSMODE=@INEWSMODE@
+RNEWSMODE=@RNEWSMODE@
+
+DO_DBZ_TAGGED_HASH=@DO_DBZ_TAGGED_HASH@
+
+TMPDIR=${PATHTMP}; export TMPDIR
+
+SPOOLTEMP=${PATHTMP}
+
+NEWSLBIN=${NEWSHOME}/local
+export NEWSLBIN
+
+UMASK=@NEWSUMASK@
+umask @NEWSUMASK@
+
+SYSLOG_FACILITY=`echo "@SYSLOG_FACILITY@" | tr "[:upper:]" "[:lower:]" | ${SED} -e 's/log_//'`
+
+PATH=${NEWSLBIN}:${NEWSBIN}:${PATH}:/bin:/usr/bin
+export PATH
+
+##  Do not override HOME.
+
+
+##  Load another script that can override or add variables. 
+if [ -x ${PATHETC}/innshellvars.local ]; then
+    . ${PATHETC}/innshellvars.local
+fi

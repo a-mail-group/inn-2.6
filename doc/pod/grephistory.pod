@@ -1,0 +1,121 @@
+=head1 NAME
+
+grephistory - Query the INN history database
+
+=head1 SYNOPSIS
+
+B<grephistory> [B<-eilnqsv>] [B<-f> I<db>] [I<message-id>]
+
+=head1 DESCRIPTION
+
+B<grephistory> queries the INN history database for information about the
+specified message-ID.  If no flags are given, the program prints the
+storage API token of the corresponding article, or C</dev/null> if the
+article is listed in the history database but not stored on the server.
+If the message-ID cannot be found in the database, B<grephistory> will
+print C<grephistory: not found> and exit with a non-zero status.
+
+Be sure to escape any special characters in the message ID from the shell.
+Single quotes are recommended for this purpose since many message-IDs
+contain dollar signs.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-e>
+
+Only print the storage token if the article is stored on the system.  (In
+other words, suppress the C</dev/null> or C<not found> output for missing
+or remembered articles.)
+
+=item B<-f> I<db>
+
+Query the history database I<db> rather than the default history database.
+
+=item B<-i>
+
+Rather than expecting a message-ID on the command line, B<grephistory>
+will read a list of message-IDs on standard input, one per line.  Leading
+and trailing whitespace is ignored, as are any malformed lines.  It will
+print on standard output those message-IDs which are not found in the
+history database.  This is used when processing C<ihave> control messages.
+
+=item B<-l>
+
+Display the entire line from the history database, rather than just the
+storage API token.  If the message-ID is present in the history database
+but has no storage API token, B<grephistory> does not print anything.
+
+=item B<-n>
+
+If the message-ID is present in the history database but has no storage
+API token, print C</dev/null> and exit successfully.  This can happen if
+an article has been cancelled or expired, but history information has
+still been retained.  This is the default behavior.
+
+=item B<-q>
+
+Don't print any message, but still exit with the appropriate status.
+
+=item B<-s>
+
+Rather than expecting a message-ID on the command line, B<grephistory>
+will read a list of message-IDs on standard input, one per line.  Leading
+and trailing whitespace is ignored, as are any malformed lines.  It will
+print on standard output the storage API tokens for any articles that are
+still available, one per line.  This flag is used when processing
+C<sendme> control messages.
+
+=item B<-v>
+
+Print out the hash of the message-ID for diagnostic purposes, as well as
+any other requested information.  This flag is not useful with B<-i> or
+B<-s>.
+
+=back
+
+=head1 EXAMPLES
+
+In case the requested article is not listed in the history database:
+
+    % grephistory '<unknown.article@news.example.com>'
+    grephistory: not found
+    % grephistory -v '<unknown.article@news.example.com>'
+    grephistory: not found (hash is 501C66C22932BA91131186D7218201EB)
+
+In case the requested article is listed in the history database
+but not stored on the server:
+
+    % grephistory '<remembered.article@news.example.com>'
+    /dev/null
+
+In case the requested article is stored on the server:
+
+    % grephistory '<87fxeaay1z.fsf@windlord.stanford.edu>'
+    @02014A2DD6231FCC00000000000000000000@
+    % grephistory -l '<87fxeaay1z.fsf@windlord.stanford.edu>'
+    [B6DDF69376E3CC199246CEC949B3ACAC]  1244517923~-~1244517912  @02014A2DD6231FCC00000000000000000000@
+
+With B<sm>, we can retrieve the article, and get its posting date:
+
+    % grephistory '<87fxeaay1z.fsf@windlord.stanford.edu>' | sm | grep Date
+    Date: Mon, 08 Jun 2009 20:25:12 -0700
+
+    % convdate -dc 1244517912
+    Tue, 9 Jun 2009 03:25:12 -0000 (UTC)
+
+It matches the number recorded in history as for its posting date.
+
+=head1 HISTORY
+
+Written by Rich $alz <rsalz@uunet.uu.net> for InterNetNews.  Rewritten in
+POD by Russ Allbery <eagle@eyrie.org>.
+
+$Id: grephistory.pod 9971 2015-12-10 20:30:10Z iulius $
+
+=head1 SEE ALSO
+
+history(5), inn.conf(5), sm(1).
+
+=cut
